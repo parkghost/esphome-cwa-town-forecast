@@ -1,0 +1,362 @@
+{
+  "success": "true",
+  "result": {
+    "resource_id": "F-D0047-071",
+    "fields": [
+      {
+        "id": "DatasetDescription",
+        "type": "String"
+      },
+      {
+        "id": "LocationsName",
+        "type": "String"
+      },
+      {
+        "id": "Dataid",
+        "type": "String"
+      },
+      {
+        "id": "LocationName",
+        "type": "String"
+      },
+      {
+        "id": "Geocode",
+        "type": "String"
+      },
+      {
+        "id": "Latitude",
+        "type": "String"
+      },
+      {
+        "id": "Longitude",
+        "type": "String"
+      },
+      {
+        "id": "ElementName",
+        "type": "String"
+      },
+      {
+        "id": "StartTime",
+        "type": "Timestamp"
+      },
+      {
+        "id": "EndTime",
+        "type": "Timestamp"
+      },
+      {
+        "id": "Temperature",
+        "type": "String"
+      },
+      {
+        "id": "DewPoint",
+        "type": "String"
+      },
+      {
+        "id": "MaxTemperature",
+        "type": "String"
+      },
+      {
+        "id": "MinTemperature",
+        "type": "String"
+      },
+      {
+        "id": "RelativeHumidity",
+        "type": "String"
+      },
+      {
+        "id": "MaxApparentTemperature",
+        "type": "String"
+      },
+      {
+        "id": "MinApparentTemperature",
+        "type": "String"
+      },
+      {
+        "id": "MaxComfortIndex",
+        "type": "String"
+      },
+      {
+        "id": "MaxComfortIndexDescription",
+        "type": "String"
+      },
+      {
+        "id": "MinComfortIndex",
+        "type": "String"
+      },
+      {
+        "id": "MinComfortIndexDescription",
+        "type": "String"
+      },
+      {
+        "id": "WindDirection",
+        "type": "String"
+      },
+      {
+        "id": "WindSpeed",
+        "type": "String"
+      },
+      {
+        "id": "BeaufortScale",
+        "type": "String"
+      },
+      {
+        "id": "ProbabilityOfPrecipitation",
+        "type": "String"
+      },
+      {
+        "id": "UVIndex",
+        "type": "String"
+      },
+      {
+        "id": "UVExposureLevel",
+        "type": "String"
+      },
+      {
+        "id": "Weather",
+        "type": "String"
+      },
+      {
+        "id": "WeatherCode",
+        "type": "String"
+      },
+      {
+        "id": "WeatherDescription",
+        "type": "String"
+      }
+    ]
+  },
+  "records": {
+    "Locations": [
+      {
+        "DatasetDescription": "臺灣各縣市鄉鎮未來1週逐12小時天氣預報",
+        "LocationsName": "新北市",
+        "Dataid": "D0047-071",
+        "Location": [
+          {
+            "LocationName": "中和區",
+            "Geocode": "65000030",
+            "Latitude": "25.000438",
+            "Longitude": "121.49279",
+            "WeatherElement": [
+              {
+                "ElementName": "平均溫度",
+                "Time": [
+                  {
+                    "StartTime": "2025-05-02T12:00:00+08:00",
+                    "EndTime": "2025-05-02T18:00:00+08:00",
+                    "ElementValue": [
+                      {
+                        "Temperature": "28"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "ElementName": "最高溫度",
+                "Time": [
+                  {
+                    "StartTime": "2025-05-02T12:00:00+08:00",
+                    "EndTime": "2025-05-02T18:00:00+08:00",
+                    "ElementValue": [
+                      {
+                        "MaxTemperature": "30"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "ElementName": "最低溫度",
+                "Time": [
+                  {
+                    "StartTime": "2025-05-02T12:00:00+08:00",
+                    "EndTime": "2025-05-02T18:00:00+08:00",
+                    "ElementValue": [
+                      {
+                        "MinTemperature": "26"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "ElementName": "平均露點溫度",
+                "Time": [
+                  {
+                    "StartTime": "2025-05-02T12:00:00+08:00",
+                    "EndTime": "2025-05-02T18:00:00+08:00",
+                    "ElementValue": [
+                      {
+                        "DewPoint": "21"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "ElementName": "平均相對濕度",
+                "Time": [
+                  {
+                    "StartTime": "2025-05-02T12:00:00+08:00",
+                    "EndTime": "2025-05-02T18:00:00+08:00",
+                    "ElementValue": [
+                      {
+                        "RelativeHumidity": "65"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "ElementName": "最高體感溫度",
+                "Time": [
+                  {
+                    "StartTime": "2025-05-02T12:00:00+08:00",
+                    "EndTime": "2025-05-02T18:00:00+08:00",
+                    "ElementValue": [
+                      {
+                        "MaxApparentTemperature": "31"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "ElementName": "最低體感溫度",
+                "Time": [
+                  {
+                    "StartTime": "2025-05-02T12:00:00+08:00",
+                    "EndTime": "2025-05-02T18:00:00+08:00",
+                    "ElementValue": [
+                      {
+                        "MinApparentTemperature": "27"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "ElementName": "最大舒適度指數",
+                "Time": [
+                  {
+                    "StartTime": "2025-05-02T12:00:00+08:00",
+                    "EndTime": "2025-05-02T18:00:00+08:00",
+                    "ElementValue": [
+                      {
+                        "MaxComfortIndex": "26",
+                        "MaxComfortIndexDescription": "舒適"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "ElementName": "最小舒適度指數",
+                "Time": [
+                  {
+                    "StartTime": "2025-05-02T12:00:00+08:00",
+                    "EndTime": "2025-05-02T18:00:00+08:00",
+                    "ElementValue": [
+                      {
+                        "MinComfortIndex": "24",
+                        "MinComfortIndexDescription": "舒適"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "ElementName": "風速",
+                "Time": [
+                  {
+                    "StartTime": "2025-05-02T12:00:00+08:00",
+                    "EndTime": "2025-05-02T18:00:00+08:00",
+                    "ElementValue": [
+                      {
+                        "WindSpeed": "5",
+                        "BeaufortScale": "3"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "ElementName": "風向",
+                "Time": [
+                  {
+                    "StartTime": "2025-05-02T12:00:00+08:00",
+                    "EndTime": "2025-05-02T18:00:00+08:00",
+                    "ElementValue": [
+                      {
+                        "WindDirection": "東南風"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "ElementName": "12小時降雨機率",
+                "Time": [
+                  {
+                    "StartTime": "2025-05-02T12:00:00+08:00",
+                    "EndTime": "2025-05-02T18:00:00+08:00",
+                    "ElementValue": [
+                      {
+                        "ProbabilityOfPrecipitation": "0"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "ElementName": "天氣現象",
+                "Time": [
+                  {
+                    "StartTime": "2025-05-02T12:00:00+08:00",
+                    "EndTime": "2025-05-02T18:00:00+08:00",
+                    "ElementValue": [
+                      {
+                        "Weather": "晴時多雲",
+                        "WeatherCode": "02"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "ElementName": "紫外線指數",
+                "Time": [
+                  {
+                    "StartTime": "2025-05-02T12:00:00+08:00",
+                    "EndTime": "2025-05-02T18:00:00+08:00",
+                    "ElementValue": [
+                      {
+                        "UVIndex": "8",
+                        "UVExposureLevel": "過量級"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "ElementName": "天氣預報綜合描述",
+                "Time": [
+                  {
+                    "StartTime": "2025-05-02T12:00:00+08:00",
+                    "EndTime": "2025-05-02T18:00:00+08:00",
+                    "ElementValue": [
+                      {
+                        "WeatherDescription": "晴時多雲。降雨機率0%。溫度攝氏26至30度。舒適。東南風 風速3級(每秒5公尺)。相對濕度65%。"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

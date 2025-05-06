@@ -1,0 +1,247 @@
+substitutions:
+  timezone: Asia/Taipei
+  default_city_name: 新北市
+  default_town_name: 中和區
+
+external_components:
+  - source: components
+
+logger:
+  level: DEBUG
+
+esphome:
+  name: town-forecast-example
+  friendly_name: Town Forecast Example
+
+esp32:
+  board: esp32-c3-devkitm-1
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  on_connect:
+    - delay: 2s
+    - script.execute: update_forecast
+
+api:
+
+web_server:
+  version: 3
+  port: 80
+
+time:
+  - platform: sntp
+    id: esp_time
+    timezone: $timezone
+    servers:
+      - time1.google.com
+      - time2.google.com
+      - time3.google.com
+    on_time:
+      - cron: "00 /30 * * * *"
+        then:
+          if:
+            condition:
+              wifi.connected:
+            then:
+              - script.execute: update_forecast
+
+cwa_town_forecast:
+  - api_key: !secret cwa_api_key
+    city_name: !lambda return id(city_name).state;
+    town_name: !lambda return id(town_name).state;
+    mode: 3-DAYS
+    id: town_forecast_id
+
+select:
+  - platform: template
+    id: city_name
+    name: City Name
+    restore_value: true
+    options:
+      - "宜蘭縣"
+      - "花蓮縣"
+      - "臺東縣"
+      - "澎湖縣"
+      - "金門縣"
+      - "連江縣"
+      - "臺北市"
+      - "新北市"
+      - "桃園市"
+      - "臺中市"
+      - "臺南市"
+      - "高雄市"
+      - "基隆市"
+      - "新竹縣"
+      - "新竹市"
+      - "苗栗縣"
+      - "彰化縣"
+      - "南投縣"
+      - "雲林縣"
+      - "嘉義縣"
+      - "嘉義市"
+      - "屏東縣"
+    initial_option: $default_city_name
+    optimistic: true
+    entity_category: "config"
+
+text:
+  - platform: template
+    id: town_name
+    name: "Town Name"
+    optimistic: true
+    min_length: 0
+    max_length: 20
+    mode: text
+    restore_value: true
+    initial_value: $default_town_name
+    entity_category: "config"
+
+script:
+  - id: update_forecast
+    then:
+      - lambda: |-
+          using namespace cwa_town_forecast;
+          auto now = id(esp_time).now();
+          if(!now.is_valid()) {
+            ESP_LOGW("forecast", "Invalid time");
+            return;
+          }
+
+          auto forecast = id(town_forecast_id);
+          forecast->update();
+          auto data = forecast->get_data();
+
+          ESP_LOGI("forecast", "Town: %s", data.location_name.c_str());
+
+          bool fallback_to_first_element = true;
+          ESP_LOGI("forecast", "Temperature: %s°C Humidity: %s%% %s",
+            data.find_value(ElementValueKey::TEMPERATURE, fallback_to_first_element, now.to_c_tm()).c_str(),
+            data.find_value(ElementValueKey::RELATIVE_HUMIDITY, fallback_to_first_element, now.to_c_tm()).c_str(),
+            data.find_value(ElementValueKey::WEATHER, fallback_to_first_element, now.to_c_tm()).c_str()
+          );
+
+          std::tm start = mktm(now.year, now.month, now.day_of_month, 0, 0, 0);
+          std::tm end = mktm(now.year, now.month, now.day_of_month, 23, 59, 59);
+          auto min_max = data.find_min_max_values(ElementValueKey::TEMPERATURE, start, end);
+          ESP_LOGI("forecast", "Today's Temperature: %.0f-%.0f °C", min_max.first, min_max.second);
+
+          auto we = data.find_weather_element(WEATHER_ELEMENT_NAME_TEMPERATURE);
+          if(we) {
+            ESP_LOGI("forecast", "Weather Element: %s", we->element_name.c_str());
+            auto filtered_times = we->filter_times(start, end);
+            for (const auto &ts : filtered_times) {
+              ESP_LOGI("forecast", "  %s Temperature: %s °C", ts.to_esptime().strftime("%H:%M").c_str(), ts.find_element_value(ElementValueKey::TEMPERATURE).c_str());
+            }
+          }
+
+button:
+  - platform: template
+    name: "Update Forecast"
+    on_press:
+      - script.execute: update_forecast
+
+  - platform: template
+    name: "Dump Forecast Data"
+    on_press:
+      - lambda: |-
+          id(town_forecast_id)->get_data().dump();
+
+# 3-DAYS Mode
+
+sensor:
+  - platform: cwa_town_forecast
+    temperature:
+      name: "Temperature"
+    dew_point:
+      name: "Dew Point"
+    apparent_temperature:
+      name: "Apparent Temperature"
+    relative_humidity:
+      name: "Relative Humidity"
+    wind_speed:
+      name: "Wind Speed"
+    probability_of_precipitation:
+      name: "Probability Of Precipitation (3H)"
+
+text_sensor:
+  - platform: cwa_town_forecast
+    comfort_index:
+      name: "Comfort Index"
+    comfort_index_description:
+      name: "Comfort Index Description"
+    weather:
+      name: "Weather"
+    weather_code:
+      name: "Weather Code"
+    weather_description:
+      name: "Weather Description"
+    weather_icon:
+      name: "Weather Icon"
+    wind_direction:
+      name: "Wind Direction"
+    beaufort_scale:
+      name: "Beaufort Scale"
+    city:
+      name: "City"
+    town:
+      name: "Town"
+    last_updated:
+      name: "Last Updated"
+
+# 7-DAYS Mode
+
+# sensor:
+#   - platform: cwa_town_forecast
+#     temperature:
+#       name: "Avg Temperature"
+#     max_temperature:
+#       name: "Max Temperature"
+#     min_temperature:
+#       name: "Min Temperature"
+#     dew_point:
+#       name: "Avg Dew Point"
+#     relative_humidity:
+#       name: "Avg Relative Humidity"
+#     max_apparent_temperature:
+#       name: "Max Apparent Temperature"
+#     min_apparent_temperature:
+#       name: "Min Apparent Temperature"
+#     wind_speed:
+#       name: "Wind Speed"
+#     probability_of_precipitation:
+#       name: "Probability Of Precipitation (12H)"
+#     uv_index:
+#       name: "UV Index"
+
+# text_sensor:
+#   - platform: cwa_town_forecast
+#     max_comfort_index:
+#       name: "Max Comfort Index"
+#     min_comfort_index:
+#       name: "Min Comfort Index"
+#     max_comfort_index_description:
+#       name: "Max Comfort Index Description"
+#     min_comfort_index_description:
+#       name: "Min Comfort Index Description"
+#     wind_direction:
+#       name: "Wind Direction"
+#     beaufort_scale:
+#       name: "Beaufort Scale"
+#     weather:
+#       name: "Weather"
+#     weather_code:
+#       name: "Weather Code"
+#     weather_icon:
+#       name: "Weather Icon"
+#     uv_exposure_level:
+#       name: "UV Exposure Level"
+#     weather_description:
+#       name: "Weather Description"
+#     city:
+#       name: "City"
+#     town:
+#       name: "Town"
+#     last_updated:
+#       name: "Last Updated"
+

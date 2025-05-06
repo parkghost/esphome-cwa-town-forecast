@@ -1,0 +1,259 @@
+{
+  "success": "true",
+  "result": {
+    "resource_id": "F-D0047-069",
+    "fields": [
+      {
+        "id": "DatasetDescription",
+        "type": "String"
+      },
+      {
+        "id": "LocationsName",
+        "type": "String"
+      },
+      {
+        "id": "Dataid",
+        "type": "String"
+      },
+      {
+        "id": "LocationName",
+        "type": "String"
+      },
+      {
+        "id": "Geocode",
+        "type": "String"
+      },
+      {
+        "id": "Latitude",
+        "type": "String"
+      },
+      {
+        "id": "Longitude",
+        "type": "String"
+      },
+      {
+        "id": "ElementName",
+        "type": "String"
+      },
+      {
+        "id": "DataTime",
+        "type": "String"
+      },
+      {
+        "id": "StartTime",
+        "type": "Timestamp"
+      },
+      {
+        "id": "EndTime",
+        "type": "Timestamp"
+      },
+      {
+        "id": "Temperature",
+        "type": "String"
+      },
+      {
+        "id": "DewPoint",
+        "type": "String"
+      },
+      {
+        "id": "ApparentTemperature",
+        "type": "String"
+      },
+      {
+        "id": "ComfortIndex",
+        "type": "String"
+      },
+      {
+        "id": "ComfortIndexDescription",
+        "type": "String"
+      },
+      {
+        "id": "RelativeHumidity",
+        "type": "String"
+      },
+      {
+        "id": "WindDirection",
+        "type": "String"
+      },
+      {
+        "id": "WindSpeed",
+        "type": "String"
+      },
+      {
+        "id": "BeaufortScale",
+        "type": "String"
+      },
+      {
+        "id": "ProbabilityOfPrecipitation",
+        "type": "String"
+      },
+      {
+        "id": "Weather",
+        "type": "String"
+      },
+      {
+        "id": "WeatherCode",
+        "type": "String"
+      },
+      {
+        "id": "WeatherDescription",
+        "type": "String"
+      }
+    ]
+  },
+  "records": {
+    "Locations": [
+      {
+        "DatasetDescription": "臺灣各縣市鄉鎮未來3天天氣預報",
+        "LocationsName": "新北市",
+        "Dataid": "D0047-069",
+        "Location": [
+          {
+            "LocationName": "中和區",
+            "Geocode": "65000030",
+            "Latitude": "25.000438",
+            "Longitude": "121.49279",
+            "WeatherElement": [
+              {
+                "ElementName": "溫度",
+                "Time": [
+                  {
+                    "DataTime": "2025-04-26T12:00:00+08:00",
+                    "ElementValue": [
+                      {
+                        "Temperature": "22"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "ElementName": "露點溫度",
+                "Time": [
+                  {
+                    "DataTime": "2025-04-26T12:00:00+08:00",
+                    "ElementValue": [
+                      {
+                        "DewPoint": "19"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "ElementName": "相對濕度",
+                "Time": [
+                  {
+                    "DataTime": "2025-04-26T12:00:00+08:00",
+                    "ElementValue": [
+                      {
+                        "RelativeHumidity": "85"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "ElementName": "體感溫度",
+                "Time": [
+                  {
+                    "DataTime": "2025-04-26T12:00:00+08:00",
+                    "ElementValue": [
+                      {
+                        "ApparentTemperature": "24"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "ElementName": "舒適度指數",
+                "Time": [
+                  {
+                    "DataTime": "2025-04-26T12:00:00+08:00",
+                    "ElementValue": [
+                      {
+                        "ComfortIndex": "21",
+                        "ComfortIndexDescription": "舒適"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "ElementName": "風速",
+                "Time": [
+                  {
+                    "DataTime": "2025-04-26T12:00:00+08:00",
+                    "ElementValue": [
+                      {
+                        "WindSpeed": "2",
+                        "BeaufortScale": "2"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "ElementName": "風向",
+                "Time": [
+                  {
+                    "DataTime": "2025-04-26T12:00:00+08:00",
+                    "ElementValue": [
+                      {
+                        "WindDirection": "東北風"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "ElementName": "3小時降雨機率",
+                "Time": [
+                  {
+                    "StartTime": "2025-04-26T12:00:00+08:00",
+                    "EndTime": "2025-04-26T15:00:00+08:00",
+                    "ElementValue": [
+                      {
+                        "ProbabilityOfPrecipitation": "80"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "ElementName": "天氣現象",
+                "Time": [
+                  {
+                    "StartTime": "2025-04-26T12:00:00+08:00",
+                    "EndTime": "2025-04-26T15:00:00+08:00",
+                    "ElementValue": [
+                      {
+                        "Weather": "短暫陣雨",
+                        "WeatherCode": "08"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "ElementName": "天氣預報綜合描述",
+                "Time": [
+                  {
+                    "StartTime": "2025-04-26T12:00:00+08:00",
+                    "EndTime": "2025-04-26T15:00:00+08:00",
+                    "ElementValue": [
+                      {
+                        "WeatherDescription": "短暫陣雨。降雨機率80%。溫度攝氏22度。舒適。東北風 平均風速1-2級(每秒2公尺)。相對濕度83至85%。"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
