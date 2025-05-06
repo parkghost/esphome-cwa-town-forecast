@@ -2,6 +2,10 @@
 
 This is an external component for ESPHome that fetches town weather forecast data from Taiwan's Central Weather Administration (CWA) Open Data platform.
 
+> For a complete example using this component with an e-paper display, see the [Weather Panel YAML](https://github.com/parkghost/esphome-epaper-examples/tree/main?tab=readme-ov-file#weather-panelyaml) in the [esphome-epaper-examples](https://github.com/parkghost/esphome-epaper-examples) repository.
+
+![weather-panel.yaml](https://raw.githubusercontent.com/parkghost/esphome-epaper-examples/main/images/weather-panel.jpg)
+
 ## Prerequisites
 
 - You need a CWA Open Data API authorization key. Obtain one from [CWA Open Data Platform](https://opendata.cwa.gov.tw/devManual/insrtuction).
