@@ -151,6 +151,7 @@ button:
 
 sensor:
   - platform: cwa_town_forecast
+    mode: 3-DAYS
     temperature:
       name: "Temperature"
     dew_point:
@@ -166,6 +167,7 @@ sensor:
 
 text_sensor:
   - platform: cwa_town_forecast
+    mode: 3-DAYS
     comfort_index:
       name: "Comfort Index"
     comfort_index_description:
@@ -193,6 +195,7 @@ text_sensor:
 
 # sensor:
 #   - platform: cwa_town_forecast
+#     mode: 7-DAYS
 #     temperature:
 #       name: "Avg Temperature"
 #     max_temperature:
@@ -216,6 +219,7 @@ text_sensor:
 
 # text_sensor:
 #   - platform: cwa_town_forecast
+#     mode: 7-DAYS  
 #     max_comfort_index:
 #       name: "Max Comfort Index"
 #     min_comfort_index:

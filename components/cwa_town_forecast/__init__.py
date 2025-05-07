@@ -125,9 +125,7 @@ CONFIG_SCHEMA = cv.All(
                     cv.one_of(*CITY_NAMES)
                 ),
                 cv.Optional(CONF_TOWN_NAME, default=""): cv.templatable(cv.string),
-                cv.Optional(CONF_MODE, default=MODE_THREE_DAYS): cv.templatable(
-                    cv.enum(Mode, upper=True)
-                ),
+                cv.Required(CONF_MODE): cv.enum(Mode, upper=True),
                 cv.Optional(CONF_WEATHER_ELEMENTS, default=[]): cv.ensure_list(
                     cv.string
                 ),
@@ -187,8 +185,7 @@ async def to_code(configs):
             town_name = await cg.templatable(config[CONF_TOWN_NAME], [], cg.std_string)
             cg.add(var.set_town_name(town_name))
         if CONF_MODE in config:
-            mode = await cg.templatable(config[CONF_MODE], [], cg.std_string)
-            cg.add(var.set_mode(mode))
+            cg.add(var.set_mode(config[CONF_MODE]))
         for weather_element in config[CONF_WEATHER_ELEMENTS]:
             cg.add(var.add_weather_element(weather_element))
         if CONF_TIME_TO in config:

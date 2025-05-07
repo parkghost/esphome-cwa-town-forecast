@@ -638,12 +638,12 @@ class CWATownForecast : public PollingComponent {
   TemplatableValue<std::string> api_key_;
   TemplatableValue<std::string> city_name_;
   TemplatableValue<std::string> town_name_;
+  Mode mode_;
   std::set<std::string> weather_elements_;
   TemplatableValue<uint32_t> time_to_;
   TemplatableValue<uint32_t> watchdog_timeout_;
   TemplatableValue<uint32_t> http_connect_timeout_;
   TemplatableValue<uint32_t> http_timeout_;
-  TemplatableValue<Mode> mode_;
   TemplatableValue<bool> fallback_to_first_element_;
   time::RealTimeClock *rtc_{nullptr};
 

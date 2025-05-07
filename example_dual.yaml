@@ -167,6 +167,7 @@ button:
 
 sensor:
   - platform: cwa_town_forecast
+    mode: 3-DAYS
     cwa_town_forecast_id: town_forecast_3d
     temperature:
       name: "3D Temperature"
@@ -182,6 +183,7 @@ sensor:
       name: "3D Probability Of Precipitation (3H)"
 
   - platform: cwa_town_forecast
+    mode: 7-DAYS
     cwa_town_forecast_id: town_forecast_7d
     temperature:
       name: "7D Avg Temperature"
@@ -214,6 +216,7 @@ sensor:
 
 text_sensor:
   - platform: cwa_town_forecast
+    mode: 3-DAYS
     cwa_town_forecast_id: town_forecast_3d
     comfort_index:
       name: "3D Comfort Index"
@@ -239,6 +242,7 @@ text_sensor:
       name: "3D Last Updated"
 
   - platform: cwa_town_forecast
+    mode: 7-DAYS
     cwa_town_forecast_id: town_forecast_7d
     max_comfort_index:
       name: "7D Max Comfort Index"

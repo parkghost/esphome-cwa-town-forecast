@@ -47,7 +47,7 @@ void CWATownForecast::dump_config() {
   ESP_LOGCONFIG(TAG, "  API Key: %s", api_key_.value().empty() ? "not set" : "set");
   ESP_LOGCONFIG(TAG, "  City Name: %s", city_name_.value().c_str());
   ESP_LOGCONFIG(TAG, "  Town Name: %s", town_name_.value().c_str());
-  ESP_LOGCONFIG(TAG, "  Mode: %s", mode_to_string(mode_.value()).c_str());
+  ESP_LOGCONFIG(TAG, "  Mode: %s", mode_to_string(mode_).c_str());
   ESP_LOGCONFIG(TAG, "  Weather Elements: %s", this->weather_elements_.empty() ? "not set" : "");
   for (const auto &element_name : this->weather_elements_) {
     ESP_LOGCONFIG(TAG, "    %s", element_name.c_str());
@@ -83,7 +83,7 @@ bool CWATownForecast::validate_config_() {
     return false;
   }
   if (!this->weather_elements_.empty()) {
-    Mode mode = this->mode_.value();
+    Mode mode = this->mode_;
     const std::set<std::string> *valid_names;
     if (mode == Mode::ThreeDays) {
       valid_names = &WEATHER_ELEMENT_NAMES_3DAYS;
@@ -109,7 +109,7 @@ bool CWATownForecast::send_request_() {
   watchdog::WatchdogManager wdm(this->watchdog_timeout_.value());
   std::string city_name = city_name_.value();
 
-  Mode mode = mode_.value();
+  Mode mode = mode_;
   std::string resource_id;
   std::map<std::string, std::string> mapping;
   if (mode == ThreeDays) {
@@ -232,7 +232,7 @@ bool CWATownForecast::process_response_(Stream &stream, uint64_t &hash_code) {
     ESP_LOGE(TAG, "API response 'success' is not true: %s", success_val.c_str());
     return false;
   }
-  record_.mode = this->mode_.value();
+  record_.mode = this->mode_;
   record_.weather_elements.clear();
   if (!stream.find("\"LocationsName\":\"")) {
     ESP_LOGE(TAG, "Could not find LocationsName");
@@ -365,7 +365,7 @@ void CWATownForecast::publish_state_common_(SensorT *sensor, ElementValueKey key
                                             PublishNoMatchFunc publish_no_match) {
   auto mode_it = MODE_ELEMENT_NAME_MAP.find(this->record_.mode);
   if (mode_it == MODE_ELEMENT_NAME_MAP.end()) {
-    ESP_LOGE(TAG, "Invalid mode: %s", mode_to_string(this->mode_.value()).c_str());
+    ESP_LOGE(TAG, "Invalid mode: %s", mode_to_string(this->mode_).c_str());
     return;
   }
   const auto &elem_map = mode_it->second;
@@ -420,7 +420,7 @@ void CWATownForecast::publish_text_sensor_state_(text_sensor::TextSensor *sensor
 
 // Publishes the weather states to sensors/text sensors.
 void CWATownForecast::publish_states_(std::tm target_tm) {
-  Mode mode = this->mode_.value();
+  Mode mode = this->mode_;
 
   std::string now_str = ESPTime::from_c_tm(&target_tm, std::mktime(&target_tm)).strftime("%Y-%m-%d %H:%M:%S");
   ESP_LOGD(TAG, "target time: %s", now_str.c_str());

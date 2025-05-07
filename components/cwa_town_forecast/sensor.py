@@ -8,7 +8,14 @@ from esphome.const import (
     DEVICE_CLASS_WIND_SPEED,
 )
 
-from . import CONF_CWA_TOWN_FORECAST_ID, CHILD_SCHEMA, CWATownForecast
+from . import (
+    CONF_CWA_TOWN_FORECAST_ID,
+    CHILD_SCHEMA,
+    CONF_MODE,
+    MODE_THREE_DAYS,
+    MODE_SEVEN_DAYS,
+)
+
 
 DEPENDENCIES = ["cwa_town_forecast"]
 
@@ -50,86 +57,134 @@ SENSORS_7DAYS = [
 
 SENSORS = list(set(SENSORS_3DAYS + SENSORS_7DAYS))
 
-CONFIG_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(CONF_CWA_TOWN_FORECAST_ID): cv.use_id(CWATownForecast),
-        cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-            unit_of_measurement="°C",
-            icon="mdi:thermometer",
-            device_class=DEVICE_CLASS_TEMPERATURE,
-            state_class=STATE_CLASS_MEASUREMENT,
-            accuracy_decimals=1,
-        ),
-        cv.Optional(CONF_DEW_POINT): sensor.sensor_schema(
-            unit_of_measurement="°C",
-            icon="mdi:thermometer-plus",
-            device_class=DEVICE_CLASS_TEMPERATURE,
-            state_class=STATE_CLASS_MEASUREMENT,
-            accuracy_decimals=1,
-        ),
-        cv.Optional(CONF_APPARENT_TEMPERATURE): sensor.sensor_schema(
-            unit_of_measurement="°C",
-            icon="mdi:thermometer-lines",
-            device_class=DEVICE_CLASS_TEMPERATURE,
-            state_class=STATE_CLASS_MEASUREMENT,
-            accuracy_decimals=1,
-        ),
-        cv.Optional(CONF_RELATIVE_HUMIDITY): sensor.sensor_schema(
-            unit_of_measurement="%",
-            icon="mdi:water-percent",
-            device_class=DEVICE_CLASS_HUMIDITY,
-            state_class=STATE_CLASS_MEASUREMENT,
-            accuracy_decimals=1,
-        ),
-        cv.Optional(CONF_WIND_SPEED): sensor.sensor_schema(
-            unit_of_measurement="m/s",
-            icon="mdi:weather-windy",
-            device_class=DEVICE_CLASS_WIND_SPEED,
-            state_class=STATE_CLASS_MEASUREMENT,
-            accuracy_decimals=1,
-        ),
-        cv.Optional(CONF_PROBABILITY_OF_PRECIPITATION): sensor.sensor_schema(
-            unit_of_measurement="%",
-            icon="mdi:weather-rainy",
-            state_class=STATE_CLASS_MEASUREMENT,
-            accuracy_decimals=0,
-        ),
-        # new 7 days forecast sensors
-        cv.Optional(CONF_MAX_TEMPERATURE): sensor.sensor_schema(
-            unit_of_measurement="°C",
-            icon="mdi:thermometer",
-            device_class=DEVICE_CLASS_TEMPERATURE,
-            state_class=STATE_CLASS_MEASUREMENT,
-            accuracy_decimals=1,
-        ),
-        cv.Optional(CONF_MIN_TEMPERATURE): sensor.sensor_schema(
-            unit_of_measurement="°C",
-            icon="mdi:thermometer",
-            device_class=DEVICE_CLASS_TEMPERATURE,
-            state_class=STATE_CLASS_MEASUREMENT,
-            accuracy_decimals=1,
-        ),
-        cv.Optional(CONF_MAX_APPARENT_TEMPERATURE): sensor.sensor_schema(
-            unit_of_measurement="°C",
-            icon="mdi:thermometer-lines",
-            device_class=DEVICE_CLASS_TEMPERATURE,
-            state_class=STATE_CLASS_MEASUREMENT,
-            accuracy_decimals=1,
-        ),
-        cv.Optional(CONF_MIN_APPARENT_TEMPERATURE): sensor.sensor_schema(
-            unit_of_measurement="°C",
-            icon="mdi:thermometer-lines",
-            device_class=DEVICE_CLASS_TEMPERATURE,
-            state_class=STATE_CLASS_MEASUREMENT,
-            accuracy_decimals=1,
-        ),
-        cv.Optional(CONF_UV_INDEX): sensor.sensor_schema(
-            icon="mdi:weather-sunny",
-            state_class=STATE_CLASS_MEASUREMENT,
-            accuracy_decimals=0,
-        ),
-    }
-).extend(CHILD_SCHEMA)
+
+CONFIG_SCHEMA = cv.All(
+    cv.typed_schema(
+        {
+            MODE_THREE_DAYS: cv.Schema(
+                {
+                    cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
+                        unit_of_measurement="°C",
+                        icon="mdi:thermometer",
+                        device_class=DEVICE_CLASS_TEMPERATURE,
+                        state_class=STATE_CLASS_MEASUREMENT,
+                        accuracy_decimals=1,
+                    ),
+                    cv.Optional(CONF_DEW_POINT): sensor.sensor_schema(
+                        unit_of_measurement="°C",
+                        icon="mdi:thermometer-plus",
+                        device_class=DEVICE_CLASS_TEMPERATURE,
+                        state_class=STATE_CLASS_MEASUREMENT,
+                        accuracy_decimals=1,
+                    ),
+                    cv.Optional(CONF_APPARENT_TEMPERATURE): sensor.sensor_schema(
+                        unit_of_measurement="°C",
+                        icon="mdi:thermometer-lines",
+                        device_class=DEVICE_CLASS_TEMPERATURE,
+                        state_class=STATE_CLASS_MEASUREMENT,
+                        accuracy_decimals=1,
+                    ),
+                    cv.Optional(CONF_RELATIVE_HUMIDITY): sensor.sensor_schema(
+                        unit_of_measurement="%",
+                        icon="mdi:water-percent",
+                        device_class=DEVICE_CLASS_HUMIDITY,
+                        state_class=STATE_CLASS_MEASUREMENT,
+                        accuracy_decimals=1,
+                    ),
+                    cv.Optional(CONF_WIND_SPEED): sensor.sensor_schema(
+                        unit_of_measurement="m/s",
+                        icon="mdi:weather-windy",
+                        device_class=DEVICE_CLASS_WIND_SPEED,
+                        state_class=STATE_CLASS_MEASUREMENT,
+                        accuracy_decimals=1,
+                    ),
+                    cv.Optional(
+                        CONF_PROBABILITY_OF_PRECIPITATION
+                    ): sensor.sensor_schema(
+                        unit_of_measurement="%",
+                        icon="mdi:weather-rainy",
+                        state_class=STATE_CLASS_MEASUREMENT,
+                        accuracy_decimals=0,
+                    ),
+                }
+            ).extend(CHILD_SCHEMA),
+            MODE_SEVEN_DAYS: cv.Schema(
+                {
+                    cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
+                        unit_of_measurement="°C",
+                        icon="mdi:thermometer",
+                        device_class=DEVICE_CLASS_TEMPERATURE,
+                        state_class=STATE_CLASS_MEASUREMENT,
+                        accuracy_decimals=1,
+                    ),
+                    cv.Optional(CONF_MAX_TEMPERATURE): sensor.sensor_schema(
+                        unit_of_measurement="°C",
+                        icon="mdi:thermometer",
+                        device_class=DEVICE_CLASS_TEMPERATURE,
+                        state_class=STATE_CLASS_MEASUREMENT,
+                        accuracy_decimals=1,
+                    ),
+                    cv.Optional(CONF_MIN_TEMPERATURE): sensor.sensor_schema(
+                        unit_of_measurement="°C",
+                        icon="mdi:thermometer",
+                        device_class=DEVICE_CLASS_TEMPERATURE,
+                        state_class=STATE_CLASS_MEASUREMENT,
+                        accuracy_decimals=1,
+                    ),
+                    cv.Optional(CONF_DEW_POINT): sensor.sensor_schema(
+                        unit_of_measurement="°C",
+                        icon="mdi:thermometer-plus",
+                        device_class=DEVICE_CLASS_TEMPERATURE,
+                        state_class=STATE_CLASS_MEASUREMENT,
+                        accuracy_decimals=1,
+                    ),
+                    cv.Optional(CONF_RELATIVE_HUMIDITY): sensor.sensor_schema(
+                        unit_of_measurement="%",
+                        icon="mdi:water-percent",
+                        device_class=DEVICE_CLASS_HUMIDITY,
+                        state_class=STATE_CLASS_MEASUREMENT,
+                        accuracy_decimals=1,
+                    ),
+                    cv.Optional(CONF_MAX_APPARENT_TEMPERATURE): sensor.sensor_schema(
+                        unit_of_measurement="°C",
+                        icon="mdi:thermometer-lines",
+                        device_class=DEVICE_CLASS_TEMPERATURE,
+                        state_class=STATE_CLASS_MEASUREMENT,
+                        accuracy_decimals=1,
+                    ),
+                    cv.Optional(CONF_MIN_APPARENT_TEMPERATURE): sensor.sensor_schema(
+                        unit_of_measurement="°C",
+                        icon="mdi:thermometer-lines",
+                        device_class=DEVICE_CLASS_TEMPERATURE,
+                        state_class=STATE_CLASS_MEASUREMENT,
+                        accuracy_decimals=1,
+                    ),
+                    cv.Optional(CONF_WIND_SPEED): sensor.sensor_schema(
+                        unit_of_measurement="m/s",
+                        icon="mdi:weather-windy",
+                        device_class=DEVICE_CLASS_WIND_SPEED,
+                        state_class=STATE_CLASS_MEASUREMENT,
+                        accuracy_decimals=1,
+                    ),
+                    cv.Optional(
+                        CONF_PROBABILITY_OF_PRECIPITATION
+                    ): sensor.sensor_schema(
+                        unit_of_measurement="%",
+                        icon="mdi:weather-rainy",
+                        state_class=STATE_CLASS_MEASUREMENT,
+                        accuracy_decimals=0,
+                    ),
+                    cv.Optional(CONF_UV_INDEX): sensor.sensor_schema(
+                        icon="mdi:weather-sunny",
+                        state_class=STATE_CLASS_MEASUREMENT,
+                        accuracy_decimals=0,
+                    ),
+                }
+            ).extend(CHILD_SCHEMA),
+        },
+        key=CONF_MODE,
+    )
+)
 
 
 async def to_code(config):

@@ -2,7 +2,13 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import text_sensor
 
-from . import CONF_CWA_TOWN_FORECAST_ID, CHILD_SCHEMA, CWATownForecast
+from . import (
+    CONF_CWA_TOWN_FORECAST_ID,
+    CHILD_SCHEMA,
+    CONF_MODE,
+    MODE_THREE_DAYS,
+    MODE_SEVEN_DAYS,
+)
 
 CONF_CITY = "city"
 CONF_TOWN = "town"
@@ -56,35 +62,12 @@ TEXT_SENSORS = list(
     )
 )
 
-CONFIG_SCHEMA = cv.Schema(
+DIAGNOSTIC_SCHEMA = cv.Schema(
     {
-        cv.GenerateID(CONF_CWA_TOWN_FORECAST_ID): cv.use_id(CWATownForecast),
         cv.Optional(CONF_LAST_UPDATED): text_sensor.text_sensor_schema(
             icon="mdi:calendar-clock",
             entity_category="diagnostic",
         ),
-        cv.Optional(CONF_COMFORT_INDEX_DESCRIPTION): text_sensor.text_sensor_schema(
-            icon="mdi:thermometer",
-        ),
-        cv.Optional(CONF_WEATHER): text_sensor.text_sensor_schema(
-            icon="mdi:weather-partly-cloudy",
-        ),
-        cv.Optional(CONF_WEATHER_CODE): text_sensor.text_sensor_schema(),
-        cv.Optional(CONF_WEATHER_DESCRIPTION): text_sensor.text_sensor_schema(),
-        cv.Optional(CONF_WEATHER_ICON): text_sensor.text_sensor_schema(),
-        cv.Optional(CONF_COMFORT_INDEX): text_sensor.text_sensor_schema(),
-        cv.Optional(CONF_WIND_DIRECTION): text_sensor.text_sensor_schema(),
-        cv.Optional(CONF_BEAUFORT_SCALE): text_sensor.text_sensor_schema(),
-        # new 7 days forecast text sensors
-        cv.Optional(CONF_MAX_COMFORT_INDEX): text_sensor.text_sensor_schema(),
-        cv.Optional(CONF_MIN_COMFORT_INDEX): text_sensor.text_sensor_schema(),
-        cv.Optional(
-            CONF_MAX_COMFORT_INDEX_DESCRIPTION
-        ): text_sensor.text_sensor_schema(),
-        cv.Optional(
-            CONF_MIN_COMFORT_INDEX_DESCRIPTION
-        ): text_sensor.text_sensor_schema(),
-        cv.Optional(CONF_UV_EXPOSURE_LEVEL): text_sensor.text_sensor_schema(),
         cv.Optional(CONF_CITY): text_sensor.text_sensor_schema(
             entity_category="diagnostic"
         ),
@@ -92,7 +75,74 @@ CONFIG_SCHEMA = cv.Schema(
             entity_category="diagnostic"
         ),
     }
-).extend(CHILD_SCHEMA)
+)
+
+CONFIG_SCHEMA = cv.All(
+    cv.typed_schema(
+        {
+            MODE_THREE_DAYS: cv.Schema(
+                {
+                    cv.Optional(
+                        CONF_COMFORT_INDEX_DESCRIPTION
+                    ): text_sensor.text_sensor_schema(
+                        icon="mdi:thermometer",
+                    ),
+                    cv.Optional(CONF_WEATHER): text_sensor.text_sensor_schema(
+                        icon="mdi:weather-partly-cloudy",
+                    ),
+                    cv.Optional(CONF_WEATHER_CODE): text_sensor.text_sensor_schema(),
+                    cv.Optional(
+                        CONF_WEATHER_DESCRIPTION
+                    ): text_sensor.text_sensor_schema(),
+                    cv.Optional(CONF_WEATHER_ICON): text_sensor.text_sensor_schema(),
+                    cv.Optional(CONF_COMFORT_INDEX): text_sensor.text_sensor_schema(),
+                    cv.Optional(CONF_WIND_DIRECTION): text_sensor.text_sensor_schema(),
+                    cv.Optional(CONF_BEAUFORT_SCALE): text_sensor.text_sensor_schema(),
+                }
+            )
+            .extend(DIAGNOSTIC_SCHEMA)
+            .extend(CHILD_SCHEMA),
+            MODE_SEVEN_DAYS: cv.Schema(
+                {
+                    cv.Optional(CONF_WEATHER): text_sensor.text_sensor_schema(
+                        icon="mdi:weather-partly-cloudy",
+                    ),
+                    cv.Optional(CONF_WEATHER_CODE): text_sensor.text_sensor_schema(),
+                    cv.Optional(
+                        CONF_WEATHER_DESCRIPTION
+                    ): text_sensor.text_sensor_schema(),
+                    cv.Optional(CONF_WEATHER_ICON): text_sensor.text_sensor_schema(),
+                    cv.Optional(CONF_WIND_DIRECTION): text_sensor.text_sensor_schema(),
+                    cv.Optional(CONF_BEAUFORT_SCALE): text_sensor.text_sensor_schema(),
+                    cv.Optional(
+                        CONF_MAX_COMFORT_INDEX
+                    ): text_sensor.text_sensor_schema(),
+                    cv.Optional(
+                        CONF_MIN_COMFORT_INDEX
+                    ): text_sensor.text_sensor_schema(),
+                    cv.Optional(
+                        CONF_MAX_COMFORT_INDEX_DESCRIPTION
+                    ): text_sensor.text_sensor_schema(),
+                    cv.Optional(
+                        CONF_MIN_COMFORT_INDEX_DESCRIPTION
+                    ): text_sensor.text_sensor_schema(),
+                    cv.Optional(
+                        CONF_UV_EXPOSURE_LEVEL
+                    ): text_sensor.text_sensor_schema(),
+                    cv.Optional(CONF_CITY): text_sensor.text_sensor_schema(
+                        entity_category="diagnostic"
+                    ),
+                    cv.Optional(CONF_TOWN): text_sensor.text_sensor_schema(
+                        entity_category="diagnostic"
+                    ),
+                }
+            )
+            .extend(DIAGNOSTIC_SCHEMA)
+            .extend(CHILD_SCHEMA),
+        },
+        key=CONF_MODE,
+    )
+)
 
 
 async def to_code(config):
