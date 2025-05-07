@@ -209,6 +209,66 @@ static const std::unordered_map<Mode, std::unordered_map<ElementValueKey, std::s
      }},
 };
 
+static const std::map<std::string, std::string> WEATHER_CODE_TO_WEATHER_ICON_NAME_MAP = {
+    {"01", "mdi:weather-sunny"},
+    {"02", "mdi:weather-partly-cloudy"},
+    {"03", "mdi:weather-partly-cloudy"},
+    {"04", "mdi:weather-partly-cloudy"},
+    {"05", "mdi:weather-cloudy"},
+    {"06", "mdi:weather-cloudy"},
+    {"07", "mdi:weather-cloudy"},
+    {"08", "mdi:weather-pouring"},
+    {"09", "mdi:weather-partly-rainy"},
+    {"10", "mdi:weather-partly-rainy"},
+    {"11", "mdi:weather-rainy"},
+    {"12", "mdi:weather-rainy"},
+    {"13", "mdi:weather-rainy"},
+    {"14", "mdi:weather-rainy"},
+    {"15", "mdi:weather-lightning-rainy"},
+    {"16", "mdi:weather-lightning-rainy"},
+    {"17", "mdi:weather-lightning-rainy"},
+    {"18", "mdi:weather-lightning-rainy"},
+    {"19", "mdi:weather-partly-rainy"},
+    {"20", "mdi:weather-partly-rainy"},
+    {"21", "mdi:weather-partly-lightning"},
+    {"22", "mdi:weather-partly-lightning"},
+    {"23", "mdi:weather-snowy-rainy"},
+    {"24", "mdi:weather-fog"},
+    {"25", "mdi:weather-fog"},
+    {"26", "mdi:weather-fog"},
+    {"27", "mdi:weather-fog"},
+    {"28", "mdi:weather-fog"},
+    {"29", "mdi:weather-partly-rainy"},
+    {"30", "mdi:weather-rainy"},
+    {"31", "mdi:weather-rainy"},
+    {"32", "mdi:weather-rainy"},
+    {"33", "mdi:weather-partly-lightning"},
+    {"34", "mdi:weather-lightning-rainy"},
+    {"35", "mdi:weather-lightning-rainy"},
+    {"36", "mdi:weather-lightning-rainy"},
+    {"37", "mdi:weather-snowy-rainy"},
+    {"38", "mdi:weather-rainy"},
+    {"39", "mdi:weather-rainy"},
+    {"41", "mdi:weather-lightning-rainy"},
+    {"42", "mdi:weather-snowy"},
+};
+
+static const std::map<std::string, std::string> CITY_NAME_TO_3D_RESOURCE_ID_MAP = {
+    {"宜蘭縣", "F-D0047-001"}, {"桃園市", "F-D0047-005"}, {"新竹縣", "F-D0047-009"}, {"苗栗縣", "F-D0047-013"}, {"彰化縣", "F-D0047-017"},
+    {"南投縣", "F-D0047-021"}, {"雲林縣", "F-D0047-025"}, {"嘉義縣", "F-D0047-029"}, {"屏東縣", "F-D0047-033"}, {"臺東縣", "F-D0047-037"},
+    {"花蓮縣", "F-D0047-041"}, {"澎湖縣", "F-D0047-045"}, {"基隆市", "F-D0047-049"}, {"新竹市", "F-D0047-053"}, {"嘉義市", "F-D0047-057"},
+    {"臺北市", "F-D0047-061"}, {"高雄市", "F-D0047-065"}, {"新北市", "F-D0047-069"}, {"臺中市", "F-D0047-073"}, {"臺南市", "F-D0047-077"},
+    {"連江縣", "F-D0047-081"}, {"金門縣", "F-D0047-085"},
+};
+
+static const std::map<std::string, std::string> CITY_NAME_TO_7D_RESOURCE_ID_MAP = {
+    {"宜蘭縣", "F-D0047-003"}, {"桃園市", "F-D0047-007"}, {"新竹縣", "F-D0047-011"}, {"苗栗縣", "F-D0047-015"}, {"彰化縣", "F-D0047-019"},
+    {"南投縣", "F-D0047-023"}, {"雲林縣", "F-D0047-027"}, {"嘉義縣", "F-D0047-031"}, {"屏東縣", "F-D0047-035"}, {"臺東縣", "F-D0047-039"},
+    {"花蓮縣", "F-D0047-043"}, {"澎湖縣", "F-D0047-047"}, {"基隆市", "F-D0047-051"}, {"新竹市", "F-D0047-055"}, {"嘉義市", "F-D0047-059"},
+    {"臺北市", "F-D0047-063"}, {"高雄市", "F-D0047-067"}, {"新北市", "F-D0047-071"}, {"臺中市", "F-D0047-075"}, {"臺南市", "F-D0047-079"},
+    {"連江縣", "F-D0047-083"}, {"金門縣", "F-D0047-087"},
+};
+
 static inline std::tm mktm(int year, int month, int day, int hour, int minute, int second) {
   std::tm tm{};
   tm.tm_year = year - 1900;
@@ -435,13 +495,17 @@ struct Record {
   }
 
   const std::string find_value(ElementValueKey key, bool fallback_to_first_element, std::tm tm) const {
+    return find_value(key, fallback_to_first_element, tm, std::string("-"));
+  }
+
+  const std::string find_value(ElementValueKey key, bool fallback_to_first_element, std::tm tm, std::string default_value) const {
     const WeatherElement *we = this->get_weather_element_for_key(key);
-    if (!we) return std::string("-");
+    if (!we) return default_value;
     if (Time *ts = we->match_time(tm, key, fallback_to_first_element)) {
       auto val = ts->find_element_value(key);
-      return val.empty() ? std::string("-") : val;
+      return val.empty() ? default_value : val;
     }
-    return std::string("-");
+    return default_value;
   }
 
   const std::pair<double, double> find_min_max_values(ElementValueKey key, std::tm &start, std::tm &end) const {

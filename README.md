@@ -383,3 +383,79 @@ Current Forecast(Day/Night):
   2025-05-12 Mon (Day)  : icon cloudy, rain -%, min 20°C, max 26°C
   2025-05-12 Mon (Night): icon cloudy, rain -%, min 21°C, max 23°C
 ```
+
+##### Displaying Weather Icons with Material Design Icons
+
+This component automatically converts [Central Weather Administration (CWA) weather codes](https://www.cwa.gov.tw/V8/assets/pdf/Weather_Icon.pdf) to [Material Design Icons](https://pictogrammers.com/library/mdi/category/weather/). For the complete mapping table, see [cwa_weather_code_to_mdi_icon_mapping_table.xlsx](docs/cwa_weather_code_to_mdi_icon_mapping_table.xlsx).
+
+Download the MDI TTF webfont here: [materialdesignicons-webfont.ttf](https://github.com/Templarian/MaterialDesign-Webfont/blob/master/fonts/materialdesignicons-webfont.ttf)
+
+```yaml
+text_sensor:
+  - platform: cwa_town_forecast
+    weather_icon:
+      id: weather_icon
+      name: "Weather Icon"
+
+font:
+  - file: "resources/fonts/materialdesignicons.ttf"
+    id: icon_weather_font
+    size: 60
+    glyphs:
+      - "\U000F0599"  # mdi:weather-sunny
+      - "\U000F0595"  # mdi:weather-partly-cloudy
+      - "\U000F0590"  # mdi:weather-cloudy
+      - "\U000F0596"  # mdi:weather-pouring
+      - "\U000F0F33"  # mdi:weather-partly-rainy
+      - "\U000F0597"  # mdi:weather-rainy
+      - "\U000F067E"  # mdi:weather-lightning-rainy
+      - "\U000F0F32"  # mdi:weather-partly-lightning
+      - "\U000F067F"  # mdi:weather-snowy-rainy
+      - "\U000F0591"  # mdi:weather-fog
+      - "\U000F0598"  # mdi:weather-snowy
+      - "\U000F0594"  # mdi:weather-night
+      - "\U000F0F31"  # mdi:weather-night-partly-cloudy
+
+display:
+  - platform: waveshare_epaper
+    id: !extend my_display
+    model: $display_model
+    rotation: $display_rotation
+    update_interval: $display_update_interval
+    full_update_every: $display_full_update_every
+    lambda: |-
+      int width = it.get_width();
+      int height = it.get_height();
+      auto BLACK = Color(0, 0, 0, 0);
+      auto RED = Color(255, 0, 0, 0);
+      auto WHITE = Color(255, 255, 255, 0);
+      if (it.get_display_type() == DisplayType::DISPLAY_TYPE_BINARY) {
+        BLACK = COLOR_ON;
+        WHITE = COLOR_OFF;
+      } else if (it.get_display_type() == DisplayType::DISPLAY_TYPE_COLOR) {
+        it.fill(WHITE);
+      }
+
+      const std::map<std::string, std::string> ICON_NAME_TO_UNICODE_MAP = {
+          {"mdi:weather-sunny","\U000F0599"},
+          {"mdi:weather-partly-cloudy","\U000F0595"},
+          {"mdi:weather-cloudy","\U000F0590"},
+          {"mdi:weather-pouring","\U000F0596"},
+          {"mdi:weather-partly-rainy","\U000F0F33"},
+          {"mdi:weather-rainy","\U000F0597"},
+          {"mdi:weather-lightning-rainy","\U000F067E"},
+          {"mdi:weather-partly-lightning","\U000F0F32"},
+          {"mdi:weather-snowy-rainy","\U000F067F"},
+          {"mdi:weather-fog","\U000F0591"},
+          {"mdi:weather-snowy","\U000F0598"},
+          {"mdi:weather-night","\U000F0594"},
+          {"mdi:weather-night-partly-cloudy","\U000F0F31"},
+      };
+
+      if (id(weather_icon).has_state()){
+          auto icon_map_it = ICON_NAME_TO_UNICODE_MAP.find(id(weather_icon).state);
+          std::string unicode_icon = icon_map_it != ICON_NAME_TO_UNICODE_MAP.end() ? icon_map_it->second : std::string("");
+
+          it.printf(width / 2, height / 2, id(icon_weather_font), BLACK, TextAlign::CENTER, "%s", unicode_icon.c_str());
+      }
+```

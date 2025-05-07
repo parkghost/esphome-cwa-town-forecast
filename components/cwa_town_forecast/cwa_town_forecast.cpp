@@ -19,66 +19,6 @@
 namespace esphome {
 namespace cwa_town_forecast {
 
-static const std::map<std::string, std::string> CITY_NAME_TO_3D_RESOURCE_ID_MAP = {
-    {"宜蘭縣", "F-D0047-001"}, {"桃園市", "F-D0047-005"}, {"新竹縣", "F-D0047-009"}, {"苗栗縣", "F-D0047-013"}, {"彰化縣", "F-D0047-017"},
-    {"南投縣", "F-D0047-021"}, {"雲林縣", "F-D0047-025"}, {"嘉義縣", "F-D0047-029"}, {"屏東縣", "F-D0047-033"}, {"臺東縣", "F-D0047-037"},
-    {"花蓮縣", "F-D0047-041"}, {"澎湖縣", "F-D0047-045"}, {"基隆市", "F-D0047-049"}, {"新竹市", "F-D0047-053"}, {"嘉義市", "F-D0047-057"},
-    {"臺北市", "F-D0047-061"}, {"高雄市", "F-D0047-065"}, {"新北市", "F-D0047-069"}, {"臺中市", "F-D0047-073"}, {"臺南市", "F-D0047-077"},
-    {"連江縣", "F-D0047-081"}, {"金門縣", "F-D0047-085"},
-};
-
-static const std::map<std::string, std::string> CITY_NAME_TO_7D_RESOURCE_ID_MAP = {
-    {"宜蘭縣", "F-D0047-003"}, {"桃園市", "F-D0047-007"}, {"新竹縣", "F-D0047-011"}, {"苗栗縣", "F-D0047-015"}, {"彰化縣", "F-D0047-019"},
-    {"南投縣", "F-D0047-023"}, {"雲林縣", "F-D0047-027"}, {"嘉義縣", "F-D0047-031"}, {"屏東縣", "F-D0047-035"}, {"臺東縣", "F-D0047-039"},
-    {"花蓮縣", "F-D0047-043"}, {"澎湖縣", "F-D0047-047"}, {"基隆市", "F-D0047-051"}, {"新竹市", "F-D0047-055"}, {"嘉義市", "F-D0047-059"},
-    {"臺北市", "F-D0047-063"}, {"高雄市", "F-D0047-067"}, {"新北市", "F-D0047-071"}, {"臺中市", "F-D0047-075"}, {"臺南市", "F-D0047-079"},
-    {"連江縣", "F-D0047-083"}, {"金門縣", "F-D0047-087"},
-};
-
-static const std::map<std::string, std::string> WEATHER_CODE_TO_WEATHER_ICON_MAP = {
-    {"01", "sunny"},
-    {"02", "sunny"},
-    {"03", "partlycloudy"},
-    {"04", "partlycloudy"},
-    {"05", "partlycloudy"},
-    {"06", "cloudy"},
-    {"07", "cloudy"},
-    {"08", "rainy"},
-    {"09", "rainy"},
-    {"10", "rainy"},
-    {"11", "rainy"},
-    {"12", "pouring"},
-    {"13", "rainy"},
-    {"14", "pouring"},
-    {"15", "lightning-rainy"},
-    {"16", "lightning-rainy"},
-    {"17", "lightning-rainy"},
-    {"18", "lightning-rainy"},
-    {"19", "rainy"},
-    {"20", "rainy"},
-    {"21", "lightning-rainy"},
-    {"22", "lightning-rainy"},
-    {"23", "snow_rainy"},
-    {"24", "fog"},
-    {"25", "fog"},
-    {"26", "fog"},
-    {"27", "fog"},
-    {"28", "fog"},
-    {"29", "rainy"},
-    {"30", "rainy"},
-    {"31", "rainy"},
-    {"32", "fog"},
-    {"33", "fog"},
-    {"34", "fog"},
-    {"35", "fog"},
-    {"36", "fog"},
-    {"37", "snow_rainy"},
-    {"38", "fog"},
-    {"39", "fog"},
-    {"41", "fog"},
-    {"42", "snow"},
-};
-
 static constexpr int DAY_START_HOUR = 5;
 static constexpr int DAY_END_HOUR = 18;
 
@@ -228,10 +168,10 @@ bool CWATownForecast::send_request_() {
   http.addHeader("Content-Type", "application/json");
   http.begin(url.c_str());
   ESP_LOGD(TAG, "Sending query: %s", url.c_str());
-  ESP_LOGD(TAG, "Free heap(internal) before request: %u", ESP.getFreeHeap());
+  ESP_LOGD(TAG, "Before request: free heap:%u, max block:%u", ESP.getFreeHeap(), heap_caps_get_largest_free_block(MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL));
   App.feed_wdt();
   int http_code = http.GET();
-  ESP_LOGD(TAG, "Free heap(internal) after request: %u", ESP.getFreeHeap());
+  ESP_LOGD(TAG, "After request: free heap:%u, max block:%u", ESP.getFreeHeap(), heap_caps_get_largest_free_block(MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL));
   if (http_code == HTTP_CODE_OK) {
     App.feed_wdt();
     uint64_t hash_code = 0;
@@ -250,8 +190,8 @@ bool CWATownForecast::send_request_() {
     } else {
       ESP_LOGE(TAG, "Failed to parse JSON response");
     }
-    ESP_LOGD(TAG, "Free heap(internal) after parse json: %u", ESP.getFreeHeap());
     http.end();
+    ESP_LOGD(TAG, "After json parse: free heap:%u, max block:%u", ESP.getFreeHeap(), heap_caps_get_largest_free_block(MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL));
     return true;
   } else {
     ESP_LOGE(TAG, "HTTP request failed, code: %d", http_code);
@@ -361,18 +301,20 @@ bool CWATownForecast::process_response_(Stream &stream, uint64_t &hash_code) {
             else
               ts.element_values.emplace_back(evk, value);
             if (we.element_name == WEATHER_ELEMENT_NAME_WEATHER && evk == ElementValueKey::WEATHER_CODE) {
-              auto it_icon = WEATHER_CODE_TO_WEATHER_ICON_MAP.find(value);
-              if (it_icon != WEATHER_CODE_TO_WEATHER_ICON_MAP.end()) {
+              auto it_icon = WEATHER_CODE_TO_WEATHER_ICON_NAME_MAP.find(value);
+              if (it_icon != WEATHER_CODE_TO_WEATHER_ICON_NAME_MAP.end()) {
                 std::string icon = it_icon->second;
                 std::tm t = ts.to_tm();
                 if (t.tm_hour + 1 < DAY_START_HOUR || t.tm_hour + 1 >= DAY_END_HOUR) {
-                  if (icon == "sunny") {
-                    icon = "clear-night";
-                  } else if (icon == "partlycloudy") {
-                    icon = "night-partly-cloudy";
+                  if (icon == "mdi-weather-sunny") {
+                    icon = "mdi-weather-night";
+                  } else if (icon == "mdi-weather-partly-cloudy" || icon == "mdi-weather-cloudy") {
+                    icon = "mdi-weather-night-partly-cloudy";
                   }
                 }
                 ts.element_values.emplace_back(ElementValueKey::WEATHER_ICON, icon);
+              } else {
+                ts.element_values.emplace_back(ElementValueKey::WEATHER_ICON, "");
               }
             }
           } else {
