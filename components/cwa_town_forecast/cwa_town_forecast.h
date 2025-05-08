@@ -213,47 +213,47 @@ static const std::unordered_map<Mode, std::unordered_map<ElementValueKey, std::s
 };
 
 static const std::map<std::string, std::string> WEATHER_CODE_TO_WEATHER_ICON_NAME_MAP = {
-    {"01", "mdi:weather-sunny"},
-    {"02", "mdi:weather-partly-cloudy"},
-    {"03", "mdi:weather-partly-cloudy"},
-    {"04", "mdi:weather-partly-cloudy"},
-    {"05", "mdi:weather-cloudy"},
-    {"06", "mdi:weather-cloudy"},
-    {"07", "mdi:weather-cloudy"},
-    {"08", "mdi:weather-pouring"},
-    {"09", "mdi:weather-partly-rainy"},
-    {"10", "mdi:weather-partly-rainy"},
-    {"11", "mdi:weather-rainy"},
-    {"12", "mdi:weather-rainy"},
-    {"13", "mdi:weather-rainy"},
-    {"14", "mdi:weather-rainy"},
-    {"15", "mdi:weather-lightning-rainy"},
-    {"16", "mdi:weather-lightning-rainy"},
-    {"17", "mdi:weather-lightning-rainy"},
-    {"18", "mdi:weather-lightning-rainy"},
-    {"19", "mdi:weather-partly-rainy"},
-    {"20", "mdi:weather-partly-rainy"},
-    {"21", "mdi:weather-partly-lightning"},
-    {"22", "mdi:weather-partly-lightning"},
-    {"23", "mdi:weather-snowy-rainy"},
-    {"24", "mdi:weather-fog"},
-    {"25", "mdi:weather-fog"},
-    {"26", "mdi:weather-fog"},
-    {"27", "mdi:weather-fog"},
-    {"28", "mdi:weather-fog"},
-    {"29", "mdi:weather-partly-rainy"},
-    {"30", "mdi:weather-rainy"},
-    {"31", "mdi:weather-rainy"},
-    {"32", "mdi:weather-rainy"},
-    {"33", "mdi:weather-partly-lightning"},
-    {"34", "mdi:weather-lightning-rainy"},
-    {"35", "mdi:weather-lightning-rainy"},
-    {"36", "mdi:weather-lightning-rainy"},
-    {"37", "mdi:weather-snowy-rainy"},
-    {"38", "mdi:weather-rainy"},
-    {"39", "mdi:weather-rainy"},
-    {"41", "mdi:weather-lightning-rainy"},
-    {"42", "mdi:weather-snowy"},
+    {"01", "sunny"},             // mdi:weather-sunny
+    {"02", "partly-cloudy"},     // mdi:weather-partly-cloudy
+    {"03", "partly-cloudy"},     // mdi:weather-partly-cloudy
+    {"04", "partly-cloudy"},     // mdi:weather-partly-cloudy
+    {"05", "cloudy"},            // mdi:weather-cloudy
+    {"06", "cloudy"},            // mdi:weather-cloudy
+    {"07", "cloudy"},            // mdi:weather-cloudy
+    {"08", "pouring"},           // mdi:weather-pouring
+    {"09", "partly-rainy"},      // mdi:weather-partly-rainy
+    {"10", "partly-rainy"},      // mdi:weather-partly-rainy
+    {"11", "rainy"},             // mdi:weather-rainy
+    {"12", "rainy"},             // mdi:weather-rainy
+    {"13", "rainy"},             // mdi:weather-rainy
+    {"14", "rainy"},             // mdi:weather-rainy
+    {"15", "lightning-rainy"},   // mdi:weather-lightning-rainy
+    {"16", "lightning-rainy"},   // mdi:weather-lightning-rainy
+    {"17", "lightning-rainy"},   // mdi:weather-lightning-rainy
+    {"18", "lightning-rainy"},   // mdi:weather-lightning-rainy
+    {"19", "partly-rainy"},      // mdi:weather-partly-rainy
+    {"20", "partly-rainy"},      // mdi:weather-partly-rainy
+    {"21", "partly-lightning"},  // mdi:weather-partly-lightning
+    {"22", "partly-lightning"},  // mdi:weather-partly-lightning
+    {"23", "snowy-rainy"},       // mdi:weather-snowy-rainy
+    {"24", "fog"},               // mdi:weather-fog
+    {"25", "fog"},               // mdi:weather-fog
+    {"26", "fog"},               // mdi:weather-fog
+    {"27", "fog"},               // mdi:weather-fog
+    {"28", "fog"},               // mdi:weather-fog
+    {"29", "partly-rainy"},      // mdi:weather-partly-rainy
+    {"30", "rainy"},             // mdi:weather-rainy
+    {"31", "rainy"},             // mdi:weather-rainy
+    {"32", "rainy"},             // mdi:weather-rainy
+    {"33", "partly-lightning"},  // mdi:weather-partly-lightning
+    {"34", "lightning-rainy"},   // mdi:weather-lightning-rainy
+    {"35", "lightning-rainy"},   // mdi:weather-lightning-rainy
+    {"36", "lightning-rainy"},   // mdi:weather-lightning-rainy
+    {"37", "snowy-rainy"},       // mdi:weather-snowy-rainy
+    {"38", "rainy"},             // mdi:weather-rainy
+    {"39", "rainy"},             // mdi:weather-rainy
+    {"41", "lightning-rainy"},   // mdi:weather-lightning-rainy
+    {"42", "snowy"},             // mdi:weather-snowy
 };
 
 static const std::map<std::string, std::string> CITY_NAME_TO_3D_RESOURCE_ID_MAP = {

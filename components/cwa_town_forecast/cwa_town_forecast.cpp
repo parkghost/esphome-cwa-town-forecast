@@ -321,10 +321,10 @@ bool CWATownForecast::process_response_(Stream &stream, uint64_t &hash_code) {
                 // Adjust icon based on time of day
                 std::tm t = ts.to_tm();
                 if (t.tm_hour + 1 < DAYTIME_START_HOUR || t.tm_hour + 1 >= DAYTIME_END_HOUR) {
-                  if (icon == "mdi:weather-sunny") {
-                    icon = "mdi:weather-night";
-                  } else if (icon == "mdi:weather-partly-cloudy" || icon == "mdi:weather-cloudy") {
-                    icon = "mdi:weather-night-partly-cloudy";
+                  if (icon == "sunny") {
+                    icon = "night";
+                  } else if (icon == "partly-cloudy" || icon == "cloudy") {
+                    icon = "night-partly-cloudy";
                   }
                 }
                 ts.element_values.emplace_back(ElementValueKey::WEATHER_ICON, icon);

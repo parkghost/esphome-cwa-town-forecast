@@ -343,7 +343,7 @@ Current Forecast(Nearly 1-3 hours):
   Weather: 陰
   Weather Description: 陰。降雨機率20%。溫度攝氏26至29度。舒適至悶熱。偏東風 平均風速1-2級(每秒2公尺)。相對濕度66至73%。
   Weather Code: 07
-  Weather Icon: mdi:weather-cloudy
+  Weather Icon: cloudy
 
 Today's Forecast(From now until midnight):
   Temperature: 20-31 °C
@@ -369,32 +369,32 @@ Current Forecast(Day/Night):
   UV Exposure Level: 高量級
   Weather: 陰時多雲
   Weather Code: 06
-  Weather Icon: mdi:weather-cloudy
+  Weather Icon: cloudy
   Weather Description: 陰時多雲。降雨機率20%。溫度攝氏20至31度。舒適至悶熱。偏東風 風速2級(每秒2公尺)。相對濕度70%。
   Wind Direction: 偏東風
   Wind Speed: 2 m/s
   Beaufort Scale: 2
 
 7-Day Forecast(Day/Night):
-  2025-05-08 Thu (Day)  : icon mdi:weather-cloudy, rain 20%, min 20°C, max 31°C
-  2025-05-08 Thu (Night): icon mdi:weather-night-partly-cloudy, rain 0%, min 24°C, max 28°C
-  2025-05-09 Fri (Day)  : icon mdi:weather-partly-lightning, rain 30%, min 24°C, max 33°C
-  2025-05-09 Fri (Night): icon mdi:weather-lightning-rainy, rain 50%, min 24°C, max 29°C
-  2025-05-10 Sat (Day)  : icon mdi:weather-lightning-rainy, rain 50%, min 22°C, max 25°C
-  2025-05-10 Sat (Night): icon mdi:weather-lightning-rainy, rain 60%, min 19°C, max 22°C
-  2025-05-11 Sun (Day)  : icon mdi:weather-lightning-rainy, rain -%, min 19°C, max 24°C
-  2025-05-11 Sun (Night): icon mdi:weather-night-partly-cloudy, rain -%, min 20°C, max 22°C
-  2025-05-12 Mon (Day)  : icon mdi:weather-partly-cloudy, rain -%, min 20°C, max 27°C
-  2025-05-12 Mon (Night): icon mdi:weather-night-partly-cloudy, rain -%, min 20°C, max 24°C
-  2025-05-13 Tue (Day)  : icon mdi:weather-partly-cloudy, rain -%, min 20°C, max 30°C
-  2025-05-13 Tue (Night): icon mdi:weather-night-partly-cloudy, rain -%, min 22°C, max 27°C
-  2025-05-14 Wed (Day)  : icon mdi:weather-partly-cloudy, rain -%, min 22°C, max 32°C
-  2025-05-14 Wed (Night): icon mdi:weather-night-partly-cloudy, rain -%, min 24°C, max 29°C
+  2025-05-08 Thu (Day)  : icon cloudy, rain 20%, min 20°C, max 31°C
+  2025-05-08 Thu (Night): icon night-partly-cloudy, rain 0%, min 24°C, max 28°C
+  2025-05-09 Fri (Day)  : icon partly-lightning, rain 30%, min 24°C, max 33°C
+  2025-05-09 Fri (Night): icon lightning-rainy, rain 50%, min 24°C, max 29°C
+  2025-05-10 Sat (Day)  : icon lightning-rainy, rain 50%, min 22°C, max 25°C
+  2025-05-10 Sat (Night): icon lightning-rainy, rain 60%, min 19°C, max 22°C
+  2025-05-11 Sun (Day)  : icon lightning-rainy, rain -%, min 19°C, max 24°C
+  2025-05-11 Sun (Night): icon night-partly-cloudy, rain -%, min 20°C, max 22°C
+  2025-05-12 Mon (Day)  : icon partly-cloudy, rain -%, min 20°C, max 27°C
+  2025-05-12 Mon (Night): icon night-partly-cloudy, rain -%, min 20°C, max 24°C
+  2025-05-13 Tue (Day)  : icon partly-cloudy, rain -%, min 20°C, max 30°C
+  2025-05-13 Tue (Night): icon night-partly-cloudy, rain -%, min 22°C, max 27°C
+  2025-05-14 Wed (Day)  : icon partly-cloudy, rain -%, min 22°C, max 32°C
+  2025-05-14 Wed (Night): icon night-partly-cloudy, rain -%, min 24°C, max 29°C
 ```
 
 ##### Displaying Weather Icons with Material Design Icons
 
-This component automatically converts [Central Weather Administration (CWA) weather codes](https://www.cwa.gov.tw/V8/assets/pdf/Weather_Icon.pdf) to [Material Design Icons](https://pictogrammers.com/library/mdi/category/weather/). For the complete mapping table, see [cwa_weather_code_to_mdi_icon_mapping_table.xlsx](docs/cwa_weather_code_to_mdi_icon_mapping_table.xlsx).
+This component automatically converts [Central Weather Administration (CWA) weather codes](https://www.cwa.gov.tw/V8/assets/pdf/Weather_Icon.pdf) to [Material Design Icons](https://pictogrammers.com/library/mdi/category/weather/). Icon names are normalized by stripping the `weather-` prefix (e.g. use `sunny` instead of `weather-sunny`). For the complete mapping table, see [cwa_weather_code_to_mdi_icon_mapping_table.xlsx](docs/cwa_weather_code_to_mdi_icon_mapping_table.xlsx).  
 
 Download the MDI TTF webfont here: [materialdesignicons-webfont.ttf](https://github.com/Templarian/MaterialDesign-Webfont/blob/master/fonts/materialdesignicons-webfont.ttf)
 
@@ -445,19 +445,19 @@ display:
       }
 
       const std::map<std::string, std::string> ICON_NAME_TO_UNICODE_MAP = {
-          {"mdi:weather-sunny","\U000F0599"},
-          {"mdi:weather-partly-cloudy","\U000F0595"},
-          {"mdi:weather-cloudy","\U000F0590"},
-          {"mdi:weather-pouring","\U000F0596"},
-          {"mdi:weather-partly-rainy","\U000F0F33"},
-          {"mdi:weather-rainy","\U000F0597"},
-          {"mdi:weather-lightning-rainy","\U000F067E"},
-          {"mdi:weather-partly-lightning","\U000F0F32"},
-          {"mdi:weather-snowy-rainy","\U000F067F"},
-          {"mdi:weather-fog","\U000F0591"},
-          {"mdi:weather-snowy","\U000F0598"},
-          {"mdi:weather-night","\U000F0594"},
-          {"mdi:weather-night-partly-cloudy","\U000F0F31"},
+          {"sunny","\U000F0599"},
+          {"partly-cloudy","\U000F0595"},
+          {"cloudy","\U000F0590"},
+          {"pouring","\U000F0596"},
+          {"partly-rainy","\U000F0F33"},
+          {"rainy","\U000F0597"},
+          {"lightning-rainy","\U000F067E"},
+          {"partly-lightning","\U000F0F32"},
+          {"snowy-rainy","\U000F067F"},
+          {"fog","\U000F0591"},
+          {"snowy","\U000F0598"},
+          {"night","\U000F0594"},
+          {"night-partly-cloudy","\U000F0F31"},
       };
 
       if (id(weather_icon).has_state()){
