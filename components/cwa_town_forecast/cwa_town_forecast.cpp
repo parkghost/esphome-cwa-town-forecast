@@ -19,9 +19,6 @@
 namespace esphome {
 namespace cwa_town_forecast {
 
-static constexpr int DAY_START_HOUR = 5;
-static constexpr int DAY_END_HOUR = 18;
-
 // Returns the setup priority for the component.
 float CWATownForecast::get_setup_priority() const { return setup_priority::LATE; }
 
@@ -305,11 +302,11 @@ bool CWATownForecast::process_response_(Stream &stream, uint64_t &hash_code) {
               if (it_icon != WEATHER_CODE_TO_WEATHER_ICON_NAME_MAP.end()) {
                 std::string icon = it_icon->second;
                 std::tm t = ts.to_tm();
-                if (t.tm_hour + 1 < DAY_START_HOUR || t.tm_hour + 1 >= DAY_END_HOUR) {
-                  if (icon == "mdi-weather-sunny") {
-                    icon = "mdi-weather-night";
-                  } else if (icon == "mdi-weather-partly-cloudy" || icon == "mdi-weather-cloudy") {
-                    icon = "mdi-weather-night-partly-cloudy";
+                if (t.tm_hour + 1 < DAYTIME_START_HOUR || t.tm_hour + 1 >= DAYTIME_END_HOUR) {
+                  if (icon == "mdi:weather-sunny") {
+                    icon = "mdi:weather-night";
+                  } else if (icon == "mdi:weather-partly-cloudy" || icon == "mdi:weather-cloudy") {
+                    icon = "mdi:weather-night-partly-cloudy";
                   }
                 }
                 ts.element_values.emplace_back(ElementValueKey::WEATHER_ICON, icon);
@@ -326,6 +323,52 @@ bool CWATownForecast::process_response_(Stream &stream, uint64_t &hash_code) {
     } while (stream.findUntil(",", "]"));
     record_.weather_elements.push_back(std::move(we));
   } while (stream.findUntil(",", "]"));
+
+  // Set the start and end time for the record
+  bool first_time = true;
+  std::tm min_tm{};
+  std::tm max_tm{};
+  for (const auto &we : record_.weather_elements) {
+    for (const auto &t : we.times) {
+      std::tm candidate_tm{};
+      if (t.data_time) {
+        candidate_tm = *t.data_time;
+      } else if (t.start_time) {
+        candidate_tm = *t.start_time;
+      } else {
+        continue;
+      }
+      std::time_t cand_epoch = std::mktime(&candidate_tm);
+      if (first_time || cand_epoch < std::mktime(&min_tm)) {
+        min_tm = candidate_tm;
+      }
+      if (first_time) {
+        if (t.end_time) {
+          max_tm = *t.end_time;
+        } else {
+          max_tm = candidate_tm;
+        }
+      } else if (t.end_time) {
+        std::time_t end_epoch = std::mktime(t.end_time.get());
+        if (end_epoch > std::mktime(&max_tm)) {
+          max_tm = *t.end_time;
+        }
+      }
+      first_time = false;
+    }
+  }
+  if (!first_time) {
+    record_.start_time = min_tm;
+    record_.end_time = max_tm;
+  }
+
+  // Set the updated time to the current time
+  ESPTime now = this->rtc_->now();
+  if (now.is_valid()) {
+    record_.updated_time = now.to_c_tm();
+  }
+
+  // Calculate the hash code for the record
   uint64_t new_hash = 0;
   std::hash<std::string> hasher;
   const uint64_t salt = 0x9e3779b97f4a7c15ULL;

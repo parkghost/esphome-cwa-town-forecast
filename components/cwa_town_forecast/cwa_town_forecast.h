@@ -21,6 +21,9 @@ namespace esphome {
 namespace cwa_town_forecast {
 
 static const char *const TAG = "cwa_town_forecast";
+static constexpr int DAYTIME_START_HOUR = 5;
+static constexpr int DAYTIME_END_HOUR = 18;
+static constexpr int UV_LOOKAHEAD_HOURS = 1;
 
 enum Mode {
   ThreeDays,
@@ -374,8 +377,6 @@ inline std::pair<double, double> get_min_max_element_value(const std::vector<Tim
   return {min_val, max_val};
 }
 
-static int UV_LOOKAHEAD_HOURS = 1;
-
 struct WeatherElement {
   std::string element_name;
   std::vector<Time> times;
@@ -474,6 +475,9 @@ struct Record {
   Mode mode;
   std::string locations_name;
   std::string location_name;
+  std::tm start_time;
+  std::tm end_time;
+  std::tm updated_time;
   std::vector<WeatherElement, RAMAllocator<WeatherElement>> weather_elements;
 
   Record() : weather_elements(RAMAllocator<WeatherElement>(RAMAllocator<WeatherElement>::NONE)) {}
@@ -515,7 +519,13 @@ struct Record {
   }
 
   void dump() const {
-    ESP_LOGI(TAG, "Record Dump: mode=%s, Locations=%s, Location=%s", mode_to_string(mode).c_str(), this->locations_name.c_str(), this->location_name.c_str());
+    ESP_LOGI(TAG, "Record Dump:");
+    ESP_LOGI(TAG, "  Mode: %s", mode_to_string(this->mode).c_str());
+    ESP_LOGI(TAG, "  Locations Name: %s", this->locations_name.c_str());
+    ESP_LOGI(TAG, "  Location Name: %s", this->location_name.c_str());
+    ESP_LOGI(TAG, "  Start Time: %s", tm_to_esptime(this->start_time).strftime("%Y-%m-%dT%H:%M:%S").c_str());
+    ESP_LOGI(TAG, "  End Time: %s", tm_to_esptime(this->end_time).strftime("%Y-%m-%dT%H:%M:%S").c_str());
+    ESP_LOGI(TAG, "  Updated Time: %s", tm_to_esptime(this->updated_time).strftime("%Y-%m-%dT%H:%M:%S").c_str());
     for (const auto &we : this->weather_elements) {
       ESP_LOGI(TAG, "  Element: %s", we.element_name.c_str());
       for (const auto &t : we.times) {

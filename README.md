@@ -322,70 +322,70 @@ ESP_LOGI("forecast", "7-Day Forecast(Day/Night):");
 ```
 Output
 ```
-Current time: 2025-05-06 14:40:35
+Current time: 2025-05-08 09:04:02
 Current Forecast(Nearly 1-3 hours):
   LocationsName: 新北市
   LocationName: 中和區
-  Temperature: 29°C
-  Dew Point: 24°C
-  Apparent Temperature: 33°C
-  Comfort Index: 27
-  Comfort Index Description: 悶熱
-  Relative Humidity: 77%
-  Wind Direction: 偏西風
-  Wind Speed: 3 m/s
+  Temperature: 26°C
+  Dew Point: 21°C
+  Apparent Temperature: 29°C
+  Comfort Index: 24
+  Comfort Index Description: 舒適
+  Relative Humidity: 73%
+  Wind Direction: 偏東風
+  Wind Speed: 2 m/s
   Beaufort Scale: 2
-  Probability Of Precipitation: 30%
-  Weather: 午後短暫雷陣雨
-  Weather Description: 午後短暫雷陣雨。降雨機率30%。溫度攝氏29度。悶熱。偏西風 平均風速1-2級(每秒3公尺)。相對濕度73至77%。
-  Weather Code: 15
-  Weather Icon: lightning-rainy
+  Probability Of Precipitation: 20%
+  Weather: 陰
+  Weather Description: 陰。降雨機率20%。溫度攝氏26至29度。舒適至悶熱。偏東風 平均風速1-2級(每秒2公尺)。相對濕度66至73%。
+  Weather Code: 07
+  Weather Icon: mdi:weather-cloudy
 
 Today's Forecast(From now until midnight):
-  Temperature: 24-29 °C
-  Apparent Temperature: 28-33 °C
-  Relative Humidity: 73-91 %
+  Temperature: 20-31 °C
+  Apparent Temperature: 22-35 °C
+  Relative Humidity: 62-84 %
 
 Current Forecast(Day/Night):
   LocationsName: 新北市
   LocationName: 中和區
-  Avg Temperature: 28°C
-  Avg Dew Point: 24°C
-  Avg Relative Humidity: 79%
-  Max Temperature: 29°C
-  Min Temperature: 26°C
-  Max Apparent Temperature: 33°C
-  Min Apparent Temperature: 30°C
+  Avg Temperature: 27°C
+  Avg Dew Point: 22°C
+  Avg Relative Humidity: 70%
+  Max Temperature: 31°C
+  Min Temperature: 20°C
+  Max Apparent Temperature: 35°C
+  Min Apparent Temperature: 22°C
   Max Comfort Index: 27
-  Min Comfort Index: 25
+  Min Comfort Index: 20
   Max Comfort Index Description: 悶熱
   Min Comfort Index Description: 舒適
-  Probability Of Precipitation: 30%
-  UV Index: 6
+  Probability Of Precipitation: 20%
+  UV Index: 7
   UV Exposure Level: 高量級
-  Weather: 多雲午後短暫雷陣雨
-  Weather Code: 22
-  Weather Icon: lightning-rainy
-  Weather Description: 多雲午後短暫雷陣雨。降雨機率30%。溫度攝氏26至29度。舒適至悶熱。西北風 風速2級(每秒3公尺)。相對濕度79%。
-  Wind Direction: 西北風
-  Wind Speed: 3 m/s
+  Weather: 陰時多雲
+  Weather Code: 06
+  Weather Icon: mdi:weather-cloudy
+  Weather Description: 陰時多雲。降雨機率20%。溫度攝氏20至31度。舒適至悶熱。偏東風 風速2級(每秒2公尺)。相對濕度70%。
+  Wind Direction: 偏東風
+  Wind Speed: 2 m/s
   Beaufort Scale: 2
 
 7-Day Forecast(Day/Night):
-  2025-05-06 Tue (Day)  : icon lightning-rainy, rain 30%, min 26°C, max 29°C
-  2025-05-06 Tue (Night): icon lightning-rainy, rain 40%, min 23°C, max 26°C
-  2025-05-07 Wed (Day)  : icon lightning-rainy, rain 40%, min 23°C, max 24°C
-  2025-05-07 Wed (Night): icon lightning-rainy, rain 30%, min 22°C, max 23°C
-  2025-05-08 Thu (Day)  : icon rainy, rain 30%, min 22°C, max 30°C
-  2025-05-08 Thu (Night): icon night-partly-cloudy, rain 0%, min 23°C, max 27°C
-  2025-05-09 Fri (Day)  : icon partlycloudy, rain -%, min 23°C, max 32°C
-  2025-05-09 Fri (Night): icon lightning-rainy, rain -%, min 24°C, max 29°C
-  2025-05-10 Sat (Day)  : icon lightning-rainy, rain -%, min 24°C, max 27°C
-  2025-05-10 Sat (Night): icon lightning-rainy, rain -%, min 21°C, max 25°C
-  2025-05-11 Sun (Day)  : icon lightning-rainy, rain -%, min 21°C, max 24°C
-  2025-05-11 Sun (Night): icon lightning-rainy, rain -%, min 20°C, max 22°C
-  2025-05-12 Mon (Day)  : icon cloudy, rain -%, min 20°C, max 26°C
-  2025-05-12 Mon (Night): icon cloudy, rain -%, min 21°C, max 23°C
+  2025-05-08 Thu (Day)  : icon mdi:weather-cloudy, rain 20%, min 20°C, max 31°C
+  2025-05-08 Thu (Night): icon mdi:weather-night-partly-cloudy, rain 0%, min 24°C, max 28°C
+  2025-05-09 Fri (Day)  : icon mdi:weather-partly-lightning, rain 30%, min 24°C, max 33°C
+  2025-05-09 Fri (Night): icon mdi:weather-lightning-rainy, rain 50%, min 24°C, max 29°C
+  2025-05-10 Sat (Day)  : icon mdi:weather-lightning-rainy, rain 50%, min 22°C, max 25°C
+  2025-05-10 Sat (Night): icon mdi:weather-lightning-rainy, rain 60%, min 19°C, max 22°C
+  2025-05-11 Sun (Day)  : icon mdi:weather-lightning-rainy, rain -%, min 19°C, max 24°C
+  2025-05-11 Sun (Night): icon mdi:weather-night-partly-cloudy, rain -%, min 20°C, max 22°C
+  2025-05-12 Mon (Day)  : icon mdi:weather-partly-cloudy, rain -%, min 20°C, max 27°C
+  2025-05-12 Mon (Night): icon mdi:weather-night-partly-cloudy, rain -%, min 20°C, max 24°C
+  2025-05-13 Tue (Day)  : icon mdi:weather-partly-cloudy, rain -%, min 20°C, max 30°C
+  2025-05-13 Tue (Night): icon mdi:weather-night-partly-cloudy, rain -%, min 22°C, max 27°C
+  2025-05-14 Wed (Day)  : icon mdi:weather-partly-cloudy, rain -%, min 22°C, max 32°C
+  2025-05-14 Wed (Night): icon mdi:weather-night-partly-cloudy, rain -%, min 24°C, max 29°C
 ```
 
 ##### Displaying Weather Icons with Material Design Icons
@@ -460,6 +460,6 @@ display:
           auto icon_map_it = ICON_NAME_TO_UNICODE_MAP.find(id(weather_icon).state);
           std::string unicode_icon = icon_map_it != ICON_NAME_TO_UNICODE_MAP.end() ? icon_map_it->second : std::string("");
 
-          it.printf(width / 2, height / 2, id(icon_weather_font), BLACK, TextAlign::CENTER, "%s", unicode_icon.c_str());
+          it.printf(width / 2, height / 2, id(icon_weather_font), BLACK, TextAlign::CENTER, unicode_icon.c_str());
       }
 ```
