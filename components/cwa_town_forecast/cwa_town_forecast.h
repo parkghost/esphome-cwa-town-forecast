@@ -23,7 +23,7 @@ namespace cwa_town_forecast {
 static const char *const TAG = "cwa_town_forecast";
 static constexpr int DAYTIME_START_HOUR = 5;
 static constexpr int DAYTIME_END_HOUR = 18;
-static constexpr int UV_LOOKAHEAD_HOURS = 1;
+static constexpr int UV_LOOKAHEAD_MINUTES = 90;
 
 enum Mode {
   ThreeDays,
@@ -458,7 +458,7 @@ struct WeatherElement {
           std::time_t st_epoch = std::mktime(&st);
           std::time_t tm_epoch = std::mktime(&tgt);
 
-          if (st_epoch > tm_epoch && (st_epoch - tm_epoch) > UV_LOOKAHEAD_HOURS * 3600) {
+          if (st_epoch > tm_epoch && (st_epoch - tm_epoch) > UV_LOOKAHEAD_MINUTES * 60) {
             ESP_LOGD(TAG, "UV data fallback outside of the forecast window");
             return nullptr;
           }
