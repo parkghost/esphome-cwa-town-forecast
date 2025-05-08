@@ -31,11 +31,14 @@ void CWATownForecast::update() {
     ESP_LOGE(TAG, "Configuration validation failed");
     return;
   }
+
   if (send_request_()) {
     this->status_clear_warning();
   } else {
     this->status_set_warning();
   }
+
+  this->publish_states_();
 }
 
 // Logs the component configuration.
@@ -99,6 +102,11 @@ bool CWATownForecast::validate_config_() {
 
 // Sends HTTP request to fetch weather data.
 bool CWATownForecast::send_request_() {
+  if (!this->rtc_->now().is_valid()) {
+    ESP_LOGW(TAG, "RTC is not valid");
+    return false;
+  }
+
   if (WiFi.status() != WL_CONNECTED) {
     ESP_LOGW(TAG, "WiFi not connected");
     return false;
@@ -108,12 +116,7 @@ bool CWATownForecast::send_request_() {
 
   Mode mode = mode_;
   std::string resource_id;
-  std::map<std::string, std::string> mapping;
-  if (mode == ThreeDays) {
-    mapping = CITY_NAME_TO_3D_RESOURCE_ID_MAP;
-  } else {
-    mapping = CITY_NAME_TO_7D_RESOURCE_ID_MAP;
-  }
+  const auto &mapping = (mode == Mode::ThreeDays ? CITY_NAME_TO_3D_RESOURCE_ID_MAP : CITY_NAME_TO_7D_RESOURCE_ID_MAP);
   auto it = mapping.find(city_name);
   if (it == mapping.end()) {
     ESP_LOGE(TAG, "Invalid city name: %s", city_name.c_str());
@@ -137,7 +140,6 @@ bool CWATownForecast::send_request_() {
     }
     element_param = "&ElementName=" + joined;
   }
-
   std::string time_to_param;
   if (time_to_.has_value()) {
     ESPTime now = this->rtc_->now();
@@ -155,9 +157,9 @@ bool CWATownForecast::send_request_() {
       ESP_LOGW(TAG, "Ignoring timeTo parameter, RTC not set");
     }
   }
-
   std::string url = "https://opendata.cwa.gov.tw/api/v1/rest/datastore/" + resource_id + "?Authorization=" + api_key_.value() +
                     "&format=JSON&LocationName=" + std::string(encoded_town_name.c_str()) + element_param + time_to_param;
+
   HTTPClient http;
   http.useHTTP10(true);
   http.setConnectTimeout(http_connect_timeout_.value());
@@ -173,6 +175,9 @@ bool CWATownForecast::send_request_() {
     App.feed_wdt();
     uint64_t hash_code = 0;
     bool result = this->process_response_(http.getStream(), hash_code);
+    http.end();
+    ESP_LOGD(TAG, "After json parse: free heap:%u, max block:%u", ESP.getFreeHeap(), heap_caps_get_largest_free_block(MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL));
+
     if (result) {
       if (this->check_changes(hash_code)) {
         ESP_LOGD(TAG, "Data changed");
@@ -180,19 +185,12 @@ bool CWATownForecast::send_request_() {
       } else {
         ESP_LOGD(TAG, "No data change detected");
       }
-      ESPTime now = this->rtc_->now();
-      if (now.is_valid()) {
-        this->publish_states_(now.to_c_tm());
-      }
     } else {
       ESP_LOGE(TAG, "Failed to parse JSON response");
     }
-    http.end();
-    ESP_LOGD(TAG, "After json parse: free heap:%u, max block:%u", ESP.getFreeHeap(), heap_caps_get_largest_free_block(MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL));
     return true;
   } else {
     ESP_LOGE(TAG, "HTTP request failed, code: %d", http_code);
-    http.end();
     return false;
   }
 }
@@ -231,6 +229,7 @@ bool CWATownForecast::process_response_(Stream &stream, uint64_t &hash_code) {
   }
   record_.mode = this->mode_;
   record_.weather_elements.clear();
+  record_.weather_elements.reserve(this->mode_ == Mode::ThreeDays ? WEATHER_ELEMENT_NAMES_3DAYS.size() : WEATHER_ELEMENT_NAMES_7DAYS.size());
   if (!stream.find("\"LocationsName\":\"")) {
     ESP_LOGE(TAG, "Could not find LocationsName");
     return false;
@@ -462,15 +461,7 @@ void CWATownForecast::publish_text_sensor_state_(text_sensor::TextSensor *sensor
 }
 
 // Publishes the weather states to sensors/text sensors.
-void CWATownForecast::publish_states_(std::tm target_tm) {
-  Mode mode = this->mode_;
-
-  std::string now_str = ESPTime::from_c_tm(&target_tm, std::mktime(&target_tm)).strftime("%Y-%m-%d %H:%M:%S");
-  ESP_LOGD(TAG, "target time: %s", now_str.c_str());
-
-  if (this->last_updated_) {
-    this->last_updated_->publish_state(now_str);
-  }
+void CWATownForecast::publish_states_() {
   if (this->city_sensor_) {
     this->city_sensor_->publish_state(record_.locations_name);
   }
@@ -478,9 +469,22 @@ void CWATownForecast::publish_states_(std::tm target_tm) {
     this->town_sensor_->publish_state(record_.location_name);
   }
 
+  ESPTime now = this->rtc_->now();
+  if (!now.is_valid()) {
+    return;
+  }
+
+  std::tm target_tm = now.to_c_tm();
+  std::string now_str = ESPTime::from_c_tm(&target_tm, std::mktime(&target_tm)).strftime("%Y-%m-%d %H:%M:%S");
+  ESP_LOGD(TAG, "target time: %s", now_str.c_str());
+
+  if (this->last_updated_) {
+    this->last_updated_->publish_state(now_str);
+  }
+
   bool fallback = this->fallback_to_first_element_.value();
 
-  if (mode == Mode::ThreeDays) {
+  if (mode_ == Mode::ThreeDays) {
     if (this->temperature_) publish_sensor_state_(this->temperature_, ElementValueKey::TEMPERATURE, target_tm, fallback);
     if (this->dew_point_) publish_sensor_state_(this->dew_point_, ElementValueKey::DEW_POINT, target_tm, fallback);
     if (this->apparent_temperature_) publish_sensor_state_(this->apparent_temperature_, ElementValueKey::APPARENT_TEMPERATURE, target_tm, fallback);
@@ -498,7 +502,7 @@ void CWATownForecast::publish_states_(std::tm target_tm) {
     if (this->wind_direction_) publish_text_sensor_state_(this->wind_direction_, ElementValueKey::WIND_DIRECTION, target_tm, fallback);
     if (this->beaufort_scale_) publish_text_sensor_state_(this->beaufort_scale_, ElementValueKey::BEAUFORT_SCALE, target_tm, fallback);
 
-  } else if (mode == Mode::SevenDays) {
+  } else if (mode_ == Mode::SevenDays) {
     if (this->temperature_) publish_sensor_state_(this->temperature_, ElementValueKey::TEMPERATURE, target_tm, fallback);
     if (this->dew_point_) publish_sensor_state_(this->dew_point_, ElementValueKey::DEW_POINT, target_tm, fallback);
     if (this->relative_humidity_) publish_sensor_state_(this->relative_humidity_, ElementValueKey::RELATIVE_HUMIDITY, target_tm, fallback);
@@ -524,7 +528,7 @@ void CWATownForecast::publish_states_(std::tm target_tm) {
     if (this->weather_description_) publish_text_sensor_state_(this->weather_description_, ElementValueKey::WEATHER_DESCRIPTION, target_tm, fallback);
     if (this->wind_direction_) publish_text_sensor_state_(this->wind_direction_, ElementValueKey::WIND_DIRECTION, target_tm, fallback);
   } else {
-    ESP_LOGE(TAG, "Invalid mode in publish_states_: %s", mode_to_string(mode).c_str());
+    ESP_LOGE(TAG, "Invalid mode in publish_states_: %s", mode_to_string(mode_).c_str());
   }
 }
 

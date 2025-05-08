@@ -19,15 +19,24 @@ esp32:
 wifi:
   ssid: !secret wifi_ssid
   password: !secret wifi_password
-  on_connect:
-    - delay: 2s
-    - script.execute: update_forecast_all
 
 api:
 
-
 debug:
   update_interval: 5s
+
+globals:
+  - id: initial
+    type: bool
+    initial_value: "false"
+
+  - id: town_forecast_3d_init
+    type: bool
+    initial_value: "false"
+
+  - id: town_forecast_7d_init
+    type: bool
+    initial_value: "false"
 
 time:
   - platform: sntp
@@ -46,7 +55,6 @@ time:
               - time.has_time:
             then:
               - script.execute: update_forecast_3d
-
       - cron: "0 0 6,18 * * *"
         then:
           if:
@@ -55,15 +63,13 @@ time:
               - time.has_time:
             then:
               - script.execute: update_forecast_7d
-
-globals:
-  - id: town_forecast_3d_init
-    type: bool
-    initial_value: "false"
-
-  - id: town_forecast_7d_init
-    type: bool
-    initial_value: "false"
+    on_time_sync:
+      then:
+        - lambda: |-
+            if (!id(initial)) {
+              id(update_forecast_all).execute();
+              id(initial) = true;
+            }
 
 cwa_town_forecast:
   - api_key: !secret cwa_api_key
@@ -143,10 +149,7 @@ button:
   - platform: template
     name: "Update Forecast"
     on_press:
-      - script.wait: update_forecast_3d
-      - script.execute: update_forecast_3d
-      - script.wait: update_forecast_7d
-      - script.execute: update_forecast_7d
+      - script.execute: update_forecast_all
 
   - platform: template
     name: "Dump Forecast 3D Data"

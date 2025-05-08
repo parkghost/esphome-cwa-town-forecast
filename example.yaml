@@ -19,15 +19,17 @@ esp32:
 wifi:
   ssid: !secret wifi_ssid
   password: !secret wifi_password
-  on_connect:
-    - delay: 2s
-    - script.execute: update_forecast
 
 api:
 
 web_server:
   version: 3
   port: 80
+
+globals:
+  - id: initial
+    type: bool
+    initial_value: "false"
 
 time:
   - platform: sntp
@@ -45,6 +47,13 @@ time:
               wifi.connected:
             then:
               - script.execute: update_forecast
+    on_time_sync:
+      then:
+        - lambda: |-
+            if (!id(initial)) {
+              id(update_forecast).execute();
+              id(initial) = true;
+            }
 
 cwa_town_forecast:
   - api_key: !secret cwa_api_key
@@ -219,7 +228,7 @@ text_sensor:
 
 # text_sensor:
 #   - platform: cwa_town_forecast
-#     mode: 7-DAYS  
+#     mode: 7-DAYS
 #     max_comfort_index:
 #       name: "Max Comfort Index"
 #     min_comfort_index:

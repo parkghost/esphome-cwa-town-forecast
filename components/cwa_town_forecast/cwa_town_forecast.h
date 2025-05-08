@@ -694,7 +694,7 @@ class CWATownForecast : public PollingComponent {
   bool validate_config_();
   bool process_response_(Stream &stream, uint64_t &hash_code);
   bool check_changes(uint64_t new_hash_code);
-  void publish_states_(std::tm target_tm);
+  void publish_states_();
   void publish_sensor_state_(sensor::Sensor *sensor, ElementValueKey key, std::tm &target_tm, bool fallback_to_first);
   void publish_text_sensor_state_(text_sensor::TextSensor *sensor, ElementValueKey key, std::tm &target_tm, bool fallback_to_first);
   template <typename SensorT, typename PublishValFunc, typename PublishNoMatchFunc>
