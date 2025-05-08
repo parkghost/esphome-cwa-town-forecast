@@ -305,14 +305,14 @@ struct Time {
   std::unique_ptr<std::tm> data_time;
   std::unique_ptr<std::tm> start_time;
   std::unique_ptr<std::tm> end_time;
-  std::vector<std::pair<ElementValueKey, std::string>> element_values;
+  std::vector<std::pair<ElementValueKey, std::string>, RAMAllocator<std::pair<ElementValueKey, std::string>>> element_values;
 
-  Time() = default;
+  Time() : element_values(RAMAllocator<std::pair<ElementValueKey, std::string>>(RAMAllocator<std::pair<ElementValueKey, std::string>>::NONE)) {}
   Time(const Time &o) {
     if (o.data_time) data_time.reset(new std::tm(*o.data_time));
     if (o.start_time) start_time.reset(new std::tm(*o.start_time));
     if (o.end_time) end_time.reset(new std::tm(*o.end_time));
-    element_values = o.element_values;
+    for (const auto &p : o.element_values) element_values.push_back(p);
   }
   Time &operator=(const Time &o) {
     if (this == &o) return *this;
@@ -328,7 +328,8 @@ struct Time {
       end_time.reset(new std::tm(*o.end_time));
     else
       end_time.reset();
-    element_values = o.element_values;
+    element_values.clear();
+    for (const auto &p : o.element_values) element_values.push_back(p);
     return *this;
   }
   Time(Time &&) = default;
@@ -354,7 +355,10 @@ struct Time {
 };
 
 // Utility function to get min and max value for a given ElementValueKey in a vector of Time
-inline std::pair<double, double> get_min_max_element_value(const std::vector<Time> &times, ElementValueKey key) {
+template <typename Alloc>
+inline std::pair<double, double> get_min_max_element_value(const std::vector<Time, Alloc> &times, ElementValueKey key) {
+  using std::begin;
+  using std::end;
   double min_val = 0.0, max_val = 0.0;
   bool found = false;
   for (const auto &t : times) {
@@ -379,10 +383,11 @@ inline std::pair<double, double> get_min_max_element_value(const std::vector<Tim
 
 struct WeatherElement {
   std::string element_name;
-  std::vector<Time> times;
+  std::vector<Time, RAMAllocator<Time>> times;
+  WeatherElement() : times(RAMAllocator<Time>(RAMAllocator<Time>::NONE)) {}
 
-  std::vector<Time> filter_times(const std::tm &start, const std::tm &end) const {
-    std::vector<Time> result;
+  std::vector<Time, RAMAllocator<Time>> filter_times(const std::tm &start, const std::tm &end) const {
+    std::vector<Time, RAMAllocator<Time>> result(RAMAllocator<Time>(RAMAllocator<Time>::NONE));
     std::tm start_copy = start, end_copy = end;
     std::time_t start_epoch = std::mktime(&start_copy);
     std::time_t end_epoch = std::mktime(&end_copy);
