@@ -243,6 +243,8 @@ text_sensor:
       name: "3D Town"
     last_updated:
       name: "3D Last Updated"
+    last_success:
+      name: "3D Last Success"
 
   - platform: cwa_town_forecast
     mode: 7-DAYS
@@ -275,6 +277,8 @@ text_sensor:
       name: "7D Town"
     last_updated:
       name: "7D Last Updated"
+    last_success:
+      name: "7D Last Success"
 
   - platform: debug
     device:

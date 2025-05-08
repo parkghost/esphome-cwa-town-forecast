@@ -20,11 +20,11 @@ This is an external component for ESPHome that fetches town weather forecast dat
       Devices equipped with PSRAM are more capable of reliably handling larger data sets.
 
   2. **Limit Data with `time_to` and `weather_elements`:**
-  
+
       Use the `time_to` option to restrict the forecast time window, and specify only the required weather elements in `weather_elements`. This reduces the amount of data fetched from the API, as well as the amount of data processed and stored in large datasets.
 
   3. **Minimize Unnecessary Components:**
-  
+
       Avoid enabling memory-intensive components such as `web_server`. Also, only define the `sensors` and `text sensors` you actually need from this component, rather than including all available options.
 
 ## Components
@@ -89,7 +89,7 @@ This is an external component for ESPHome that fetches town weather forecast dat
 ```yaml
 sensor:
   - platform: cwa_town_forecast
-    mode: 3-DAYS  
+    mode: 3-DAYS
     temperature:
       name: "Temperature"
     dew_point:
@@ -128,6 +128,8 @@ text_sensor:
       name: "Town"
     last_updated:
       name: "Last Updated"
+    last_success:
+      name: "Last Success"
 ```
 
 ##### 7-DAYS Mode
@@ -188,6 +190,8 @@ text_sensor:
       name: "Town"
     last_updated:
       name: "Last Updated"
+    last_success:
+      name: "Last Success"
 ```
 
 #### Example

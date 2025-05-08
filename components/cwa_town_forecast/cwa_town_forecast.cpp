@@ -34,6 +34,13 @@ void CWATownForecast::update() {
 
   if (send_request_()) {
     this->status_clear_warning();
+
+    if (this->last_success_) {
+      auto now = this->rtc_->now();
+      if (now.is_valid()) {
+        this->last_success_->publish_state(now.strftime("%Y-%m-%d %H:%M:%S"));
+      }
+    }
   } else {
     this->status_set_warning();
   }

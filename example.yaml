@@ -199,6 +199,8 @@ text_sensor:
       name: "Town"
     last_updated:
       name: "Last Updated"
+    last_success:
+      name: "Last Success"
 
 # 7-DAYS Mode
 
@@ -257,4 +259,6 @@ text_sensor:
 #       name: "Town"
 #     last_updated:
 #       name: "Last Updated"
+#     last_success:
+#       name: "Last Success"
 
