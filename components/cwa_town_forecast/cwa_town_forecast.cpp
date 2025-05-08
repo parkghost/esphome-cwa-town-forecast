@@ -243,11 +243,43 @@ bool CWATownForecast::process_response_(Stream &stream, uint64_t &hash_code) {
     return false;
   }
   record_.locations_name = stream.readStringUntil('"').c_str();
+
   if (!stream.find("\"LocationName\":\"")) {
     ESP_LOGE(TAG, "Could not find LocationName");
     return false;
   }
   record_.location_name = stream.readStringUntil('"').c_str();
+
+  if (!stream.find("\"Latitude\":\"")) {
+    ESP_LOGE(TAG, "Could not find Latitude");
+    return false;
+  }
+  String lat_str = stream.readStringUntil('"');
+  const char *lat_cstr = lat_str.c_str();
+  char *lat_end = nullptr;
+  double lat_val = std::strtod(lat_cstr, &lat_end);
+  if (lat_cstr == lat_end || *lat_end != '\0') {
+    ESP_LOGW(TAG, "Invalid latitude value: %s", lat_cstr);
+    record_.latitude = NAN;
+  } else {
+    record_.latitude = lat_val;
+  }
+
+  if (!stream.find("\"Longitude\":\"")) {
+    ESP_LOGE(TAG, "Could not find Longitude");
+    return false;
+  }
+  String lon_str = stream.readStringUntil('"');
+  const char *lon_cstr = lon_str.c_str();
+  char *lon_end = nullptr;
+  double lon_val = std::strtod(lon_cstr, &lon_end);
+  if (lon_cstr == lon_end || *lon_end != '\0') {
+    ESP_LOGW(TAG, "Invalid longitude value: %s", lon_cstr);
+    record_.longitude = NAN;
+  } else {
+    record_.longitude = lon_val;
+  }
+
   if (!stream.find("\"WeatherElement\":[")) {
     ESP_LOGE(TAG, "Could not find WeatherElement array");
     return false;

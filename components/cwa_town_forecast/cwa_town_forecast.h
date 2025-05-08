@@ -483,6 +483,8 @@ struct Record {
   std::tm start_time;
   std::tm end_time;
   std::tm updated_time;
+  double latitude;
+  double longitude;
   std::vector<WeatherElement, RAMAllocator<WeatherElement>> weather_elements;
 
   Record() : weather_elements(RAMAllocator<WeatherElement>(RAMAllocator<WeatherElement>::NONE)) {}
@@ -528,11 +530,13 @@ struct Record {
     ESP_LOGI(TAG, "  Mode: %s", mode_to_string(this->mode).c_str());
     ESP_LOGI(TAG, "  Locations Name: %s", this->locations_name.c_str());
     ESP_LOGI(TAG, "  Location Name: %s", this->location_name.c_str());
+    ESP_LOGI(TAG, "  Latitude: %.6f", this->latitude);
+    ESP_LOGI(TAG, "  Longitude: %.6f", this->longitude);
     ESP_LOGI(TAG, "  Start Time: %s", tm_to_esptime(this->start_time).strftime("%Y-%m-%dT%H:%M:%S").c_str());
     ESP_LOGI(TAG, "  End Time: %s", tm_to_esptime(this->end_time).strftime("%Y-%m-%dT%H:%M:%S").c_str());
     ESP_LOGI(TAG, "  Updated Time: %s", tm_to_esptime(this->updated_time).strftime("%Y-%m-%dT%H:%M:%S").c_str());
     for (const auto &we : this->weather_elements) {
-      ESP_LOGI(TAG, "  Element: %s", we.element_name.c_str());
+      ESP_LOGI(TAG, "  Weather Element: %s", we.element_name.c_str());
       for (const auto &t : we.times) {
         std::string datetime_str = "";
         if (t.data_time) {
