@@ -33,20 +33,36 @@ void CWATownForecast::update() {
     return;
   }
 
+  auto now = this->rtc_->now();
+  std::tm tm = now.to_c_tm();
   if (send_request_()) {
     this->status_clear_warning();
 
     if (this->last_success_) {
-      auto now = this->rtc_->now();
-      if (now.is_valid()) {
-        this->last_success_->publish_state(now.strftime("%Y-%m-%d %H:%M:%S"));
-      }
+      this->last_success_->publish_state(now.strftime("%Y-%m-%d %H:%M:%S"));
     }
+
+    this->publish_states_();
+
+    time_t now_epoch = std::mktime(&tm);
+    time_t expiry_offset = static_cast<time_t>(this->sensor_expiry_.value() / 1000);
+    this->sensor_expiration_time_ = now_epoch + expiry_offset;
   } else {
     this->status_set_warning();
-  }
 
-  this->publish_states_();
+    time_t epoch = std::mktime(&tm);
+
+    char now_buf[20];
+    std::strftime(now_buf, sizeof(now_buf), "%Y-%m-%d %H:%M:%S", &tm);
+    std::tm exp_tm = *std::localtime(&this->sensor_expiration_time_);
+    char exp_buf[20];
+    std::strftime(exp_buf, sizeof(exp_buf), "%Y-%m-%d %H:%M:%S", &exp_tm);
+    ESP_LOGV(TAG, "Current time: %s, Expiration time: %s", now_buf, exp_buf);
+    if (epoch > this->sensor_expiration_time_) {
+      ESP_LOGW(TAG, "Sensor data expired");
+      this->publish_states_();
+    }
+  }
 
   if (!this->data_access_.value()) {
     record_.weather_elements.clear();
@@ -70,6 +86,8 @@ void CWATownForecast::dump_config() {
     ESP_LOGCONFIG(TAG, "  Time To: %lu hours", static_cast<unsigned long>(time_to_.value() / 1000 / 3600));
   }
   ESP_LOGCONFIG(TAG, "  Fallback to First Element: %s", fallback_to_first_element_.value() ? "true" : "false");
+  ESP_LOGCONFIG(TAG, "  Sensor Expiry: %u minutes", sensor_expiry_.value() / 1000 / 60);
+  ESP_LOGCONFIG(TAG, "  Data Access: %s", data_access_.value() ? "true" : "false");
   ESP_LOGCONFIG(TAG, "  Watchdog Timeout: %u ms", watchdog_timeout_.value());
   ESP_LOGCONFIG(TAG, "  HTTP Connect Timeout: %u ms", http_connect_timeout_.value());
   ESP_LOGCONFIG(TAG, "  HTTP Timeout: %u ms", http_timeout_.value());
@@ -198,10 +216,11 @@ bool CWATownForecast::send_request_() {
       } else {
         ESP_LOGD(TAG, "No data change detected");
       }
+      return true;
     } else {
       ESP_LOGE(TAG, "Failed to parse JSON response");
+      return false;
     }
-    return true;
   } else {
     ESP_LOGE(TAG, "HTTP request failed, code: %d", http_code);
     return false;
@@ -577,9 +596,7 @@ void CWATownForecast::publish_states_() {
     return;
   }
 
-  // Convert to tm struct for matching with forecast times
-  std::tm target_tm = now.to_c_tm();
-  std::string now_str = ESPTime::from_c_tm(&target_tm, std::mktime(&target_tm)).strftime("%Y-%m-%d %H:%M:%S");
+  std::string now_str = now.strftime("%Y-%m-%d %H:%M:%S");
   ESP_LOGD(TAG, "Target time for state publishing: %s", now_str.c_str());
 
   // Publish last updated time
@@ -587,6 +604,7 @@ void CWATownForecast::publish_states_() {
     this->last_updated_->publish_state(now_str);
   }
 
+  std::tm target_tm = now.to_c_tm();
   // Get the fallback flag for missing data
   bool fallback = this->fallback_to_first_element_.value();
 

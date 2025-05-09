@@ -29,13 +29,14 @@ CONF_TOWN_NAME = "town_name"
 CONF_TIME_TO = "time_to"
 CONF_MODE = "mode"
 CONF_WEATHER_ELEMENTS = "weather_elements"
+CONF_FALLBACK_TO_FIRST_ELEMENT = "fallback_to_first_element"
+CONF_SENSOR_EXPIRY = "sensor_expiry"
+CONF_DATA_ACCESS = "data_access"
 CONF_ON_DATA_CHANGE = "on_data_change"
 
 CONF_WATCHDOG_TIMEOUT = "watchdog_timeout"
 CONF_HTTP_CONNECT_TIMEOUT = "http_connect_timeout"
 CONF_HTTP_TIMEOUT = "http_timeout"
-CONF_FALLBACK_TO_FIRST_ELEMENT = "fallback_to_first_element"
-CONF_DATA_ACCESS = "data_access"
 
 CHILD_SCHEMA = cv.Schema(
     {
@@ -139,6 +140,12 @@ CONFIG_SCHEMA = cv.All(
                 cv.Optional(
                     CONF_FALLBACK_TO_FIRST_ELEMENT, default=True
                 ): cv.templatable(cv.boolean),
+                cv.Optional(CONF_SENSOR_EXPIRY, default="1h"): cv.templatable(
+                    cv.All(
+                        cv.positive_not_null_time_period,
+                        cv.positive_time_period_milliseconds,
+                    )
+                ),
                 cv.Optional(CONF_DATA_ACCESS, default=False): cv.templatable(cv.boolean),
                 cv.Optional(CONF_ON_DATA_CHANGE): automation.validate_automation(),
                 cv.Optional(CONF_WATCHDOG_TIMEOUT, default="30s"): cv.templatable(
@@ -198,6 +205,9 @@ async def to_code(configs):
                 config[CONF_FALLBACK_TO_FIRST_ELEMENT], [], cg.bool_
             )
             cg.add(var.set_fallback_to_first_element(fallback))
+        if CONF_SENSOR_EXPIRY in config:
+            sensor_expiry = await cg.templatable(config[CONF_SENSOR_EXPIRY], [], cg.uint32)
+            cg.add(var.set_sensor_expiry(sensor_expiry))
         if CONF_DATA_ACCESS in config:
             access = await cg.templatable(config[CONF_DATA_ACCESS], [], cg.bool_)
             cg.add(var.set_data_access(access))

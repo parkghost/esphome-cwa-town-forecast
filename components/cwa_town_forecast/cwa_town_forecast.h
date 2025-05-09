@@ -602,6 +602,19 @@ class CWATownForecast : public PollingComponent {
   }
 
   template <typename V>
+  void set_sensor_expiry(V expiry) {
+    sensor_expiry_ = expiry;
+  }
+
+  template <typename V>
+  void set_fallback_to_first_element(V fallback) {
+    fallback_to_first_element_ = fallback;
+  }
+  template <typename V>
+  void set_data_access(V clear) {
+    data_access_ = clear;
+  }
+  template <typename V>
   void set_watchdog_timeout(V watchdog_timeout) {
     watchdog_timeout_ = watchdog_timeout;
   }
@@ -614,16 +627,6 @@ class CWATownForecast : public PollingComponent {
   template <typename V>
   void set_http_timeout(V http_timeout) {
     http_timeout_ = http_timeout;
-  }
-
-  template <typename V>
-  void set_fallback_to_first_element(V fallback) {
-    fallback_to_first_element_ = fallback;
-  }
-
-  template <typename V>
-  void set_data_access(V clear) {
-    data_access_ = clear;
   }
 
   Record &get_data();
@@ -669,11 +672,13 @@ class CWATownForecast : public PollingComponent {
   TemplatableValue<uint32_t> watchdog_timeout_;
   TemplatableValue<uint32_t> http_connect_timeout_;
   TemplatableValue<uint32_t> http_timeout_;
+  TemplatableValue<uint32_t> sensor_expiry_;
   TemplatableValue<bool> fallback_to_first_element_;
   time::RealTimeClock *rtc_{nullptr};
 
   uint64_t last_hash_code_{0};
   Record record_;
+  time_t sensor_expiration_time_{};
 
   esphome::text_sensor::TextSensor *city_sensor_{nullptr};
   esphome::text_sensor::TextSensor *town_sensor_{nullptr};
