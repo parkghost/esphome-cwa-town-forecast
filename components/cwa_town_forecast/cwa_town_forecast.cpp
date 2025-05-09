@@ -250,6 +250,8 @@ static bool parse_iso8601(const std::string &s, std::tm &tm) {
 
 // Processes the HTTP response and parses weather data.
 bool CWATownForecast::process_response_(Stream &stream, uint64_t &hash_code) {
+  Record temp_record;
+
   if (!stream.find("\"success\":")) {
     ESP_LOGE(TAG, "Could not find success field");
     return false;
@@ -259,20 +261,19 @@ bool CWATownForecast::process_response_(Stream &stream, uint64_t &hash_code) {
     ESP_LOGE(TAG, "API response 'success' is not true: %s", success_val.c_str());
     return false;
   }
-  record_.mode = this->mode_;
-  record_.weather_elements.clear();
-  record_.weather_elements.reserve(this->mode_ == Mode::ThreeDays ? WEATHER_ELEMENT_NAMES_3DAYS.size() : WEATHER_ELEMENT_NAMES_7DAYS.size());
+  temp_record.mode = this->mode_;
+  temp_record.weather_elements.reserve(this->mode_ == Mode::ThreeDays ? WEATHER_ELEMENT_NAMES_3DAYS.size() : WEATHER_ELEMENT_NAMES_7DAYS.size());
   if (!stream.find("\"LocationsName\":\"")) {
     ESP_LOGE(TAG, "Could not find LocationsName");
     return false;
   }
-  record_.locations_name = stream.readStringUntil('"').c_str();
+  temp_record.locations_name = stream.readStringUntil('"').c_str();
 
   if (!stream.find("\"LocationName\":\"")) {
     ESP_LOGE(TAG, "Could not find LocationName");
     return false;
   }
-  record_.location_name = stream.readStringUntil('"').c_str();
+  temp_record.location_name = stream.readStringUntil('"').c_str();
 
   if (!stream.find("\"Latitude\":\"")) {
     ESP_LOGE(TAG, "Could not find Latitude");
@@ -284,9 +285,9 @@ bool CWATownForecast::process_response_(Stream &stream, uint64_t &hash_code) {
   double lat_val = std::strtod(lat_cstr, &lat_end);
   if (lat_cstr == lat_end || *lat_end != '\0') {
     ESP_LOGW(TAG, "Invalid latitude value: %s", lat_cstr);
-    record_.latitude = NAN;
+    temp_record.latitude = NAN;
   } else {
-    record_.latitude = lat_val;
+    temp_record.latitude = lat_val;
   }
 
   if (!stream.find("\"Longitude\":\"")) {
@@ -299,9 +300,9 @@ bool CWATownForecast::process_response_(Stream &stream, uint64_t &hash_code) {
   double lon_val = std::strtod(lon_cstr, &lon_end);
   if (lon_cstr == lon_end || *lon_end != '\0') {
     ESP_LOGW(TAG, "Invalid longitude value: %s", lon_cstr);
-    record_.longitude = NAN;
+    temp_record.longitude = NAN;
   } else {
-    record_.longitude = lon_val;
+    temp_record.longitude = lon_val;
   }
 
   if (!stream.find("\"WeatherElement\":[")) {
@@ -312,8 +313,8 @@ bool CWATownForecast::process_response_(Stream &stream, uint64_t &hash_code) {
   ESPTime now = this->rtc_->now();
   SunSet sun;
   double timezone_offset = static_cast<double>(now.timezone_offset()) / 60 / 60;
-  sun.setPosition(record_.latitude, record_.longitude, timezone_offset);
-  ESP_LOGD(TAG, "Sunset Latitude: %f, Longitude: %f, Offset: %d", record_.latitude, record_.longitude, timezone_offset);
+  sun.setPosition(temp_record.latitude, temp_record.longitude, timezone_offset);
+  ESP_LOGD(TAG, "Sunset Latitude: %f, Longitude: %f, Offset: %d", temp_record.latitude, temp_record.longitude, timezone_offset);
 
   const size_t chunk_capacity = 1000;
   ArduinoJson::DynamicJsonDocument time_obj(chunk_capacity);
@@ -413,14 +414,14 @@ bool CWATownForecast::process_response_(Stream &stream, uint64_t &hash_code) {
         we.times.push_back(std::move(ts));
       }
     } while (stream.findUntil(",", "]"));
-    record_.weather_elements.push_back(std::move(we));
+    temp_record.weather_elements.push_back(std::move(we));
   } while (stream.findUntil(",", "]"));
 
   // Determine start and end time for the entire record
   bool first_time = true;
   std::tm min_tm{};
   std::tm max_tm{};
-  for (const auto &we : record_.weather_elements) {
+  for (const auto &we : temp_record.weather_elements) {
     for (const auto &t : we.times) {
       std::tm candidate_tm{};
       if (t.data_time) {
@@ -450,13 +451,13 @@ bool CWATownForecast::process_response_(Stream &stream, uint64_t &hash_code) {
     }
   }
   if (!first_time) {
-    record_.start_time = min_tm;
-    record_.end_time = max_tm;
+    temp_record.start_time = min_tm;
+    temp_record.end_time = max_tm;
   }
 
   // Set the updated time to current time
   if (now.is_valid()) {
-    record_.updated_time = now.to_c_tm();
+    temp_record.updated_time = now.to_c_tm();
   }
 
   // Calculate hash code for change detection
@@ -467,9 +468,9 @@ bool CWATownForecast::process_response_(Stream &stream, uint64_t &hash_code) {
     uint64_t h = hasher(s);
     new_hash ^= h + salt + (new_hash << 6) + (new_hash >> 2);
   };
-  combine(record_.locations_name);
-  combine(record_.location_name);
-  for (const auto &we : record_.weather_elements) {
+  combine(temp_record.locations_name);
+  combine(temp_record.location_name);
+  for (const auto &we : temp_record.weather_elements) {
     combine(we.element_name);
     for (const auto &ts : we.times) {
       for (const auto &p : ts.element_values) {
@@ -477,6 +478,19 @@ bool CWATownForecast::process_response_(Stream &stream, uint64_t &hash_code) {
       }
     }
   }
+  
+  this->record_.mode = temp_record.mode;
+  this->record_.locations_name = temp_record.locations_name;
+  this->record_.location_name = temp_record.location_name;
+  this->record_.latitude = temp_record.latitude;
+  this->record_.longitude = temp_record.longitude;
+  this->record_.start_time = temp_record.start_time;
+  this->record_.end_time = temp_record.end_time;
+  this->record_.updated_time = temp_record.updated_time;
+  
+  // Use swap for the vector to avoid allocator comparison
+  this->record_.weather_elements.clear();
+  this->record_.weather_elements.swap(temp_record.weather_elements);
   hash_code = new_hash;
   return true;
 }
