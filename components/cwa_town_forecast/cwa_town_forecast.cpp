@@ -2,6 +2,7 @@
 
 #include <HTTPClient.h>
 #include <UrlEncode.h>
+#include <sunset.h>
 
 #include <algorithm>
 #include <cctype>
@@ -284,6 +285,13 @@ bool CWATownForecast::process_response_(Stream &stream, uint64_t &hash_code) {
     ESP_LOGE(TAG, "Could not find WeatherElement array");
     return false;
   }
+
+  ESPTime now = this->rtc_->now();
+  SunSet sun;
+  double timezone_offset = static_cast<double>(now.timezone_offset()) / 60 / 60;
+  sun.setPosition(record_.latitude, record_.longitude, timezone_offset);
+  ESP_LOGD(TAG, "Sunset Latitude: %f, Longitude: %f, Offset: %d", record_.latitude, record_.longitude, timezone_offset);
+
   const size_t chunk_capacity = 1000;
   ArduinoJson::DynamicJsonDocument time_obj(chunk_capacity);
   do {
@@ -298,6 +306,7 @@ bool CWATownForecast::process_response_(Stream &stream, uint64_t &hash_code) {
       ESP_LOGE(TAG, "Could not find Time array for %s", we.element_name.c_str());
       return false;
     }
+
     do {
       DeserializationError err = deserializeJson(time_obj, stream);
       if (err) {
@@ -352,7 +361,17 @@ bool CWATownForecast::process_response_(Stream &stream, uint64_t &hash_code) {
 
                 // Adjust icon based on time of day
                 std::tm t = ts.to_tm();
-                if (t.tm_hour + 1 < DAYTIME_START_HOUR || t.tm_hour + 1 >= DAYTIME_END_HOUR) {
+                sun.setCurrentDate(t.tm_hour + 1900, t.tm_mon + 1, t.tm_mday);
+                double sunrise = sun.calcSunrise();
+                double sunset = sun.calcSunset();
+                int sunrise_hour = static_cast<int>(sunrise / 60);
+                int sunrise_minute = static_cast<int>(sunrise) % 60;
+                int sunset_hour = static_cast<int>(sunset / 60);
+                int sunset_minute = static_cast<int>(sunset) % 60;
+                ESP_LOGV(TAG, "Date: %04d-%02d-%02d Sunrise: %02d:%02d, Sunset: %02d:%02d", t.tm_year + 1900, t.tm_mon + 1, t.tm_mday, sunrise_hour,
+                          sunrise_minute, sunset_hour, sunset_minute);
+
+                if (t.tm_hour + 1 < sunrise_hour || t.tm_hour + 1 >= sunset_hour) {
                   if (icon == "sunny") {
                     icon = "night";
                   } else if (icon == "partly-cloudy" || icon == "cloudy") {
@@ -413,7 +432,6 @@ bool CWATownForecast::process_response_(Stream &stream, uint64_t &hash_code) {
   }
 
   // Set the updated time to current time
-  ESPTime now = this->rtc_->now();
   if (now.is_valid()) {
     record_.updated_time = now.to_c_tm();
   }

@@ -217,3 +217,4 @@ async def to_code(configs):
     cg.add_library("WiFiClientSecure", None)
     cg.add_library("HTTPClient", None)
     cg.add_library("UrlEncode", None)
+    cg.add_library("sunset", None)

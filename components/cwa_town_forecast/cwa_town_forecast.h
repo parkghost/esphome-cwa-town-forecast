@@ -21,8 +21,7 @@ namespace esphome {
 namespace cwa_town_forecast {
 
 static const char *const TAG = "cwa_town_forecast";
-static constexpr int DAYTIME_START_HOUR = 5;
-static constexpr int DAYTIME_END_HOUR = 18;
+
 static constexpr int UV_LOOKAHEAD_MINUTES = 90;
 
 enum Mode {

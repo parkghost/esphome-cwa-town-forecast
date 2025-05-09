@@ -394,9 +394,9 @@ Current Forecast(Day/Night):
 
 ##### Displaying Weather Icons with Material Design Icons
 
-This component automatically converts [Central Weather Administration (CWA) weather codes](https://www.cwa.gov.tw/V8/assets/pdf/Weather_Icon.pdf) to [Material Design Icons](https://pictogrammers.com/library/mdi/category/weather/). Icon names are normalized by stripping the `weather-` prefix (e.g. use `sunny` instead of `weather-sunny`). For the complete mapping table, see [cwa_weather_code_to_mdi_icon_mapping_table.xlsx](docs/cwa_weather_code_to_mdi_icon_mapping_table.xlsx).  
+This component automatically converts [Central Weather Administration (CWA) weather codes](https://www.cwa.gov.tw/V8/assets/pdf/Weather_Icon.pdf) to [Material Design Icons](https://pictogrammers.com/library/mdi/category/weather/). Icon names are normalized by stripping the `weather-` prefix (e.g. use `sunny` instead of `weather-sunny`). For the complete mapping table, see [Icon Mapping Table](docs/cwa_weather_code_to_mdi_icon_mapping_table.xlsx).
 
-Download the MDI TTF webfont here: [materialdesignicons-webfont.ttf](https://github.com/Templarian/MaterialDesign-Webfont/blob/master/fonts/materialdesignicons-webfont.ttf)
+Download the MDI TTF here: [materialdesignicons-webfont.ttf](https://github.com/Templarian/MaterialDesign-Webfont/blob/master/fonts/materialdesignicons-webfont.ttf)
 
 ```yaml
 text_sensor:
