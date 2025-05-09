@@ -60,7 +60,9 @@ cwa_town_forecast:
     city_name: !lambda return id(city_name).state;
     town_name: !lambda return id(town_name).state;
     mode: 3-DAYS
+    time_to: 1d
     id: town_forecast_id
+    data_access: true
 
 select:
   - platform: template

@@ -570,6 +570,8 @@ class CWATownForecast : public PollingComponent {
 
   void dump_config() override;
 
+  void set_time(time::RealTimeClock *rtc) { rtc_ = rtc; }
+
   template <typename V>
   void set_api_key(V key) {
     api_key_ = key;
@@ -619,9 +621,12 @@ class CWATownForecast : public PollingComponent {
     fallback_to_first_element_ = fallback;
   }
 
-  void set_time(time::RealTimeClock *rtc) { rtc_ = rtc; }
+  template <typename V>
+  void set_data_access(V clear) {
+    data_access_ = clear;
+  }
 
-  const Record &get_data() const;
+  Record &get_data();
 
   void set_city_text_sensor(esphome::text_sensor::TextSensor *city) { city_sensor_ = city; }
   void set_town_text_sensor(esphome::text_sensor::TextSensor *town) { town_sensor_ = town; }
@@ -654,6 +659,7 @@ class CWATownForecast : public PollingComponent {
 
  protected:
   Trigger<Record &> on_data_change_trigger_{};
+  TemplatableValue<bool> data_access_;
   TemplatableValue<std::string> api_key_;
   TemplatableValue<std::string> city_name_;
   TemplatableValue<std::string> town_name_;

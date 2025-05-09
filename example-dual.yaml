@@ -78,6 +78,7 @@ cwa_town_forecast:
     town_name: !lambda return id(town_name).state;
     mode: 3-DAYS
     time_to: 1d
+    data_access: true
     on_data_change:
       - lambda: |-
           id(town_forecast_3d_init) = true;
@@ -87,6 +88,7 @@ cwa_town_forecast:
     city_name: !lambda return id(city_name).state;
     town_name: !lambda return id(town_name).state;
     mode: 7-DAYS
+    data_access: true
     on_data_change:
       - lambda: |-
           id(town_forecast_7d_init) = true;

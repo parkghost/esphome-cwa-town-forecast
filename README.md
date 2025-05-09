@@ -15,15 +15,19 @@ This is an external component for ESPHome that fetches town weather forecast dat
 
   Due to the memory requirements of SSL (for secure connections) and handling forecast data, it’s important to optimize your configuration to avoid running out of memory.
 
-  1. **Use a Microcontroller with PSRAM:**
+  1. **Disable Data Access Option:**
+
+      Disable the `data_access` option to automatically free memory by clearing fetched forecast data after publishing states. This is useful on devices with limited RAM when you do not need to retain data.
+
+  2. **Use a Microcontroller with PSRAM:**
 
       Devices equipped with PSRAM are more capable of reliably handling larger data sets.
 
-  2. **Limit Data with `time_to` and `weather_elements`:**
+  3. **Limit Data with `time_to` and `weather_elements`:**
 
       Use the `time_to` option to restrict the forecast time window, and specify only the required weather elements in `weather_elements`. This reduces the amount of data fetched from the API, as well as the amount of data processed and stored in large datasets.
 
-  3. **Minimize Unnecessary Components:**
+  4. **Minimize Unnecessary Components:**
 
       Avoid enabling memory-intensive components such as `web_server`. Also, only define the `sensors` and `text sensors` you actually need from this component, rather than including all available options.
 
@@ -34,6 +38,7 @@ This is an external component for ESPHome that fetches town weather forecast dat
 #### Configuration Variables:
 
 * **id** (Optional, ID): The ID to use for this component.
+* **time_id** (Required, ID): The ID of the `time` component used to provide the current time for forecast indexing.
 * **api_key** (Required, string, templatable): Your CWA Open Data API key.
 * **city_name** (Required, string, templatable): The name of the city (e.g., "新北市").
 * **town_name** (Required, string, templatable): The name of the [town](https://opendata.cwa.gov.tw/opendatadoc/Opendata_City.pdf) (e.g., "中和區").
@@ -71,6 +76,7 @@ This is an external component for ESPHome that fetches town weather forecast dat
     - 天氣預報綜合描述
 * **time_to** (Optional, Time): Specify a time offset (e.g., `12h`, `1d`) to fetch forecast data for a future time window. Reducing the time range can lower memory usage.
 * **fallback_to_first_element** (Optional, boolean): Whether to fallback to the first time element if no matching time is found when publishing data. Default `true`.
+* **data_access** (Optional, boolean): Whether to retain fetched forecast data after publishing states. Default `false`. When disabled, data is cleared after publishing to optimize memory usage.
 * **watchdog_timeout** (Optional, Time): Timeout for the request watchdog. Default `30s`.
 * **http_connect_timeout** (Optional, Time): HTTP connect timeout. Default `5s`.
 * **http_timeout** (Optional, Time): HTTP read timeout. Default `10s`.

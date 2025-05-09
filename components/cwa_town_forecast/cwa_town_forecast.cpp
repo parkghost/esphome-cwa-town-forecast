@@ -47,6 +47,10 @@ void CWATownForecast::update() {
   }
 
   this->publish_states_();
+
+  if (!this->data_access_.value()) {
+    record_.weather_elements.clear();
+  }
 }
 
 // Logs the component configuration.
@@ -369,7 +373,7 @@ bool CWATownForecast::process_response_(Stream &stream, uint64_t &hash_code) {
                 int sunset_hour = static_cast<int>(sunset / 60);
                 int sunset_minute = static_cast<int>(sunset) % 60;
                 ESP_LOGV(TAG, "Date: %04d-%02d-%02d Sunrise: %02d:%02d, Sunset: %02d:%02d", t.tm_year + 1900, t.tm_mon + 1, t.tm_mday, sunrise_hour,
-                          sunrise_minute, sunset_hour, sunset_minute);
+                         sunrise_minute, sunset_hour, sunset_minute);
 
                 if (t.tm_hour + 1 < sunrise_hour || t.tm_hour + 1 >= sunset_hour) {
                   if (icon == "sunny") {
@@ -459,7 +463,12 @@ bool CWATownForecast::process_response_(Stream &stream, uint64_t &hash_code) {
 }
 
 // Returns the latest weather data record.
-const Record &CWATownForecast::get_data() const { return record_; }
+Record &CWATownForecast::get_data() {
+  if (!this->data_access_.value()) {
+    ESP_LOGW(TAG, "Trun on data_access option to get Weather data");
+  }
+  return record_;
+}
 
 // Checks if the data has changed based on hash code.
 bool CWATownForecast::check_changes(uint64_t new_hash_code) {
