@@ -2,7 +2,7 @@
 
 This is an external component for ESPHome that fetches town weather forecast data from Taiwan's Central Weather Administration (CWA) Open Data platform.
 
-> For a complete example using this component with an e-paper display, see the [Weather Panel YAML](https://github.com/parkghost/esphome-epaper-examples/tree/main?tab=readme-ov-file#weather-panelyaml) in the [esphome-epaper-examples](https://github.com/parkghost/esphome-epaper-examples) repository.
+> For a complete example using this component with an e-paper display, see the [Weather Panel YAML](https://github.com/parkghost/esphome-epaper-examples/blob/main/weather-panel.yaml) in the [esphome-epaper-examples](https://github.com/parkghost/esphome-epaper-examples) repository.
 
 ![weather-panel.yaml](https://raw.githubusercontent.com/parkghost/esphome-epaper-examples/main/images/weather-panel.jpg)
 
@@ -15,13 +15,13 @@ This is an external component for ESPHome that fetches town weather forecast dat
 
   Due to the memory requirements of SSL (for secure connections) and handling forecast data, it’s important to optimize your configuration to avoid running out of memory.
 
-  1. **Disable Data Access Option:**
-
-      Disable the `data_access` option to automatically free memory by clearing fetched forecast data after publishing states. This is useful on devices with limited RAM when you do not need to retain data.
-
-  2. **Use a Microcontroller with PSRAM:**
+  1. **Use a Microcontroller with PSRAM:**
 
       Devices equipped with PSRAM are more capable of reliably handling larger data sets.
+
+  2. **Disable `retain_fetched_data`:**
+
+      Disable the `retain_fetched_data` option to automatically free memory by clearing fetched forecast data after publishing states. This is useful on devices with limited RAM when you do not need to retain data.
 
   3. **Limit Data with `time_to` and `weather_elements`:**
 
@@ -74,17 +74,17 @@ This is an external component for ESPHome that fetches town weather forecast dat
     - `天氣現象`
     - `紫外線指數`
     - `天氣預報綜合描述`
-* **time_to** (Optional, Time): Specify a time offset (e.g., `12h`, `1d`) to fetch forecast data for a future time window. Reducing the time range can lower memory usage.
-* **clear_cache_early** (Optional, boolean): Whether to clear internal cache early before fetching new data to optimize memory usage. Default `AUTO`. Options:
+* **time_to** (Optional, Time, templatable): Specify a time offset (e.g., `12h`, `1d`) to fetch forecast data for a future time window. Reducing the time range can lower memory usage.
+* **early_data_clear** (Optional, string): Whether to clear internal cache early before fetching new data to optimize memory usage. Default `AUTO`. Options:
   - `AUTO`: Never clear internal cache early when PSRAM is present.
   - `ON`: Clear internal cache early(Reduces heap pressure and fragmentation to optimize memory usage. Side effect: data is empty on fetch failure).
   - `OFF`: Never clear internal cache early.
-* **fallback_to_first_element** (Optional, boolean): Whether to fallback to the first time element if no matching time is found when publishing data. Default `true`.
-* **data_access** (Optional, boolean): Whether to retain fetched forecast data after publishing states. Default `false`. When disabled, data is cleared after publishing to optimize memory usage.
-* **sensor_expiry** (Optional, Time): Duration to retain last values after failures. Default `1h`.
-* **watchdog_timeout** (Optional, Time): Timeout for the request watchdog. Default `30s`.
-* **http_connect_timeout** (Optional, Time): HTTP connect timeout. Default `5s`.
-* **http_timeout** (Optional, Time): HTTP read timeout. Default `10s`.
+* **fallback_to_first_element** (Optional, boolean, templatable): Whether to fallback to the first time element if no matching time is found when publishing data. Default `true`.
+* **retain_fetched_data** (Optional, boolean, templatable): Whether to retain fetched forecast data after publishing states. Default `false`. When disabled, data is cleared after publishing to optimize memory usage.
+* **sensor_expiry** (Optional, Time, templatable): Duration to retain last values after failures. Default `1h`.
+* **watchdog_timeout** (Optional, Time, templatable): Timeout for the request watchdog. Default `30s`.
+* **http_connect_timeout** (Optional, Time, templatable): HTTP connect timeout. Default `5s`.
+* **http_timeout** (Optional, Time, templatable): HTTP read timeout. Default `10s`.
 * **update_interval** (Optional, Time): How often to check for new data. Defaults to `never` (manual updates only).
 
 #### Automations

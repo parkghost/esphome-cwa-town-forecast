@@ -26,7 +26,7 @@ float CWATownForecast::get_setup_priority() const { return setup_priority::LATE;
 // Initializes the component.
 void CWATownForecast::setup() {}
 
-// Periodically called to update weather data.
+// Periodically called to update forecast data.
 void CWATownForecast::update() {
   if (!validate_config_()) {
     ESP_LOGE(TAG, "Configuration validation failed");
@@ -64,7 +64,7 @@ void CWATownForecast::update() {
     }
   }
 
-  if (!this->data_access_.value()) {
+  if (!this->retain_fetched_data_.value()) {
     record_.weather_elements.clear();
   }
 }
@@ -90,9 +90,9 @@ void CWATownForecast::dump_config() {
   } else {
     ESP_LOGCONFIG(TAG, "  Time To: %lu hours", static_cast<unsigned long>(time_to_.value() / 1000 / 3600));
   }
-  ESP_LOGCONFIG(TAG, "  Clear Cache Early: %s", clear_cache_early_to_string(clear_cache_early_.value()).c_str());
+  ESP_LOGCONFIG(TAG, "  Early Data Clear: %s", early_data_clear_to_string(early_data_clear_.value()).c_str());
   ESP_LOGCONFIG(TAG, "  Fallback to First Element: %s", fallback_to_first_element_.value() ? "true" : "false");
-  ESP_LOGCONFIG(TAG, "  Data Access: %s", data_access_.value() ? "true" : "false");
+  ESP_LOGCONFIG(TAG, "  Retain Fetched Data: %s", retain_fetched_data_.value() ? "true" : "false");
   ESP_LOGCONFIG(TAG, "  Sensor Expiry: %u minutes", sensor_expiry_.value() / 1000 / 60);
   ESP_LOGCONFIG(TAG, "  Watchdog Timeout: %u ms", watchdog_timeout_.value());
   ESP_LOGCONFIG(TAG, "  HTTP Connect Timeout: %u ms", http_connect_timeout_.value());
@@ -137,7 +137,7 @@ bool CWATownForecast::validate_config_() {
   return true;
 }
 
-// Sends HTTP request to fetch weather data.
+// Sends HTTP request to fetch forecast data.
 bool CWATownForecast::send_request_() {
   if (!this->rtc_->now().is_valid()) {
     ESP_LOGW(TAG, "RTC is not valid");
@@ -155,16 +155,16 @@ bool CWATownForecast::send_request_() {
   psram_available = true;
 #endif
 
-  switch (clear_cache_early_.value()) {
+  switch (early_data_clear_.value()) {
     case Auto:
       if (!psram_available) {
-        ESP_LOGD(TAG, "[Auto] Clearing weather elements cache early");
+        ESP_LOGD(TAG, "[Auto] Clear forecast data before sending request");
         this->record_.weather_elements.clear();
       }
       break;
 
     case On:
-      ESP_LOGD(TAG, "[On] Clearing weather elements cache early");
+      ESP_LOGD(TAG, "[On] Clear forecast data before sending request");
       this->record_.weather_elements.clear();
       break;
   }
@@ -275,7 +275,7 @@ static bool parse_iso8601(const std::string &s, std::tm &tm) {
   return true;
 }
 
-// Processes the HTTP response and parses weather data.
+// Processes the HTTP response and parses forecast data.
 bool CWATownForecast::process_response_(Stream &stream, uint64_t &hash_code) {
   Record temp_record;
 
@@ -522,10 +522,10 @@ bool CWATownForecast::process_response_(Stream &stream, uint64_t &hash_code) {
   return true;
 }
 
-// Returns the latest weather data record.
+// Returns the latest forecast data record.
 Record &CWATownForecast::get_data() {
-  if (!this->data_access_.value()) {
-    ESP_LOGW(TAG, "Trun on data_access option to get Weather data");
+  if (!this->retain_fetched_data_.value()) {
+    ESP_LOGE(TAG, "Trun on retain_fetched_data option to get forecast data");
   }
   return record_;
 }
