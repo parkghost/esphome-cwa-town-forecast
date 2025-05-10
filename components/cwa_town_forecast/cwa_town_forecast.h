@@ -651,6 +651,8 @@ class CWATownForecast : public PollingComponent {
     http_timeout_ = http_timeout;
   }
 
+  void clear_cache() { record_.weather_elements.clear(); }
+
   Record &get_data();
 
   void set_city_text_sensor(text_sensor::TextSensor *city) { city_sensor_ = city; }

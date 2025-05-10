@@ -77,7 +77,7 @@ This is an external component for ESPHome that fetches town weather forecast dat
 * **time_to** (Optional, Time): Specify a time offset (e.g., `12h`, `1d`) to fetch forecast data for a future time window. Reducing the time range can lower memory usage.
 * **clear_cache_early** (Optional, boolean): Whether to clear internal cache early before fetching new data to optimize memory usage. Default `AUTO`. Options:
   - `AUTO`: Never clear internal cache early when PSRAM is present.
-  - `ON`: Clear internal cache early(Reduces heap pressure and fragmentation to optimize memory usage. Side effect: data is empty on response parse failure).
+  - `ON`: Clear internal cache early(Reduces heap pressure and fragmentation to optimize memory usage. Side effect: data is empty on fetch failure).
   - `OFF`: Never clear internal cache early.
 * **fallback_to_first_element** (Optional, boolean): Whether to fallback to the first time element if no matching time is found when publishing data. Default `true`.
 * **data_access** (Optional, boolean): Whether to retain fetched forecast data after publishing states. Default `false`. When disabled, data is cleared after publishing to optimize memory usage.

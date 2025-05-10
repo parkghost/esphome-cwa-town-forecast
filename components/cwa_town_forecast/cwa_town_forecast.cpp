@@ -149,6 +149,26 @@ bool CWATownForecast::send_request_() {
     return false;
   }
   watchdog::WatchdogManager wdm(this->watchdog_timeout_.value());
+
+  bool psram_available = false;
+#ifdef USE_PSRAM
+  psram_available = true;
+#endif
+
+  switch (clear_cache_early_.value()) {
+    case Auto:
+      if (!psram_available) {
+        ESP_LOGD(TAG, "[Auto] Clearing weather elements cache early");
+        this->record_.weather_elements.clear();
+      }
+      break;
+
+    case On:
+      ESP_LOGD(TAG, "[On] Clearing weather elements cache early");
+      this->record_.weather_elements.clear();
+      break;
+  }
+
   std::string city_name = city_name_.value();
 
   // Get the appropriate resource ID based on forecast mode
@@ -315,25 +335,6 @@ bool CWATownForecast::process_response_(Stream &stream, uint64_t &hash_code) {
   if (!stream.find("\"WeatherElement\":[")) {
     ESP_LOGE(TAG, "Could not find WeatherElement array");
     return false;
-  }
-
-  bool psram_available = false;
-#ifdef USE_PSRAM
-  psram_available = true;
-#endif
-
-  switch (clear_cache_early_.value()) {
-    case Auto:
-      if (!psram_available) {
-        ESP_LOGD(TAG, "[Auto] Clearing weather elements cache early");
-        this->record_.weather_elements.clear();
-      }
-      break;
-
-    case On:
-      ESP_LOGD(TAG, "[On] Clearing weather elements cache early");
-      this->record_.weather_elements.clear();
-      break;
   }
 
   ESPTime now = this->rtc_->now();
