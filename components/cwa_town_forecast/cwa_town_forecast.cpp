@@ -71,6 +71,11 @@ void CWATownForecast::update() {
 
 // Logs the component configuration.
 void CWATownForecast::dump_config() {
+  bool psram_available = false;
+#ifdef USE_PSRAM
+  psram_available = true;
+#endif
+
   ESP_LOGCONFIG(TAG, "CWA Town Forecast:");
   ESP_LOGCONFIG(TAG, "  API Key: %s", api_key_.value().empty() ? "not set" : "set");
   ESP_LOGCONFIG(TAG, "  City Name: %s", city_name_.value().c_str());
@@ -92,6 +97,7 @@ void CWATownForecast::dump_config() {
   ESP_LOGCONFIG(TAG, "  Watchdog Timeout: %u ms", watchdog_timeout_.value());
   ESP_LOGCONFIG(TAG, "  HTTP Connect Timeout: %u ms", http_connect_timeout_.value());
   ESP_LOGCONFIG(TAG, "  HTTP Timeout: %u ms", http_timeout_.value());
+  ESP_LOGCONFIG(TAG, "  PSRAM Available: %s", psram_available ? "true" : "false");
   LOG_UPDATE_INTERVAL(this);
 }
 
@@ -312,9 +318,8 @@ bool CWATownForecast::process_response_(Stream &stream, uint64_t &hash_code) {
   }
 
   bool psram_available = false;
-#if defined(CONFIG_SPIRAM_SUPPORT)
-#include "esp_spiram.h"
-  psram_available = psramFound();
+#ifdef USE_PSRAM
+  psram_available = true;
 #endif
 
   switch (clear_cache_early_.value()) {
