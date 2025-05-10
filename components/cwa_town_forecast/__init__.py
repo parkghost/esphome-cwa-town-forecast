@@ -44,6 +44,7 @@ CONF_SENSOR_EXPIRY = "sensor_expiry"
 CONF_DATA_ACCESS = "data_access"
 CONF_CLEAR_CACHE_EARLY = "clear_cache_early"
 CONF_ON_DATA_CHANGE = "on_data_change"
+CONF_ON_ERROR = "on_error"
 
 CONF_WATCHDOG_TIMEOUT = "watchdog_timeout"
 CONF_HTTP_CONNECT_TIMEOUT = "http_connect_timeout"
@@ -160,6 +161,7 @@ CONFIG_SCHEMA = cv.All(
                 cv.Optional(CONF_DATA_ACCESS, default=False): cv.templatable(cv.boolean),
                 cv.Optional(CONF_CLEAR_CACHE_EARLY, default=CLEAR_CACHE_EARLY_AUTO): cv.templatable(cv.enum(ClearCacheEarly, upper=True)),
                 cv.Optional(CONF_ON_DATA_CHANGE): automation.validate_automation(),
+                cv.Optional(CONF_ON_ERROR): automation.validate_automation(),
                 cv.Optional(CONF_WATCHDOG_TIMEOUT, default="30s"): cv.templatable(
                     cv.All(
                         cv.positive_not_null_time_period,
@@ -230,6 +232,12 @@ async def to_code(configs):
             await automation.build_automation(
                 var.get_on_data_change_trigger(),
                 [(CWATownForecastRecordRef, "data")],
+                trigger,
+            )
+        for trigger in config.get(CONF_ON_ERROR, []):
+            await automation.build_automation(
+                var.get_on_error_trigger(),
+                [],
                 trigger,
             )
         if CONF_WATCHDOG_TIMEOUT in config:

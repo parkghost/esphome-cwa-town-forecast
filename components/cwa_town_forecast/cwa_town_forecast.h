@@ -580,7 +580,6 @@ struct Record {
 
 class CWATownForecast : public PollingComponent {
  public:
-  Trigger<Record &> *get_on_data_change_trigger() { return &this->on_data_change_trigger_; }
   float get_setup_priority() const override;
 
   void setup() override;
@@ -654,8 +653,8 @@ class CWATownForecast : public PollingComponent {
 
   Record &get_data();
 
-  void set_city_text_sensor(esphome::text_sensor::TextSensor *city) { city_sensor_ = city; }
-  void set_town_text_sensor(esphome::text_sensor::TextSensor *town) { town_sensor_ = town; }
+  void set_city_text_sensor(text_sensor::TextSensor *city) { city_sensor_ = city; }
+  void set_town_text_sensor(text_sensor::TextSensor *town) { town_sensor_ = town; }
   void set_last_updated_text_sensor(text_sensor::TextSensor *sensor) { last_updated_ = sensor; }
   void set_last_success_text_sensor(text_sensor::TextSensor *sensor) { last_success_ = sensor; }
   void set_temperature_sensor(sensor::Sensor *sensor) { temperature_ = sensor; }
@@ -682,9 +681,10 @@ class CWATownForecast : public PollingComponent {
   void set_min_comfort_index_description_text_sensor(text_sensor::TextSensor *sensor) { min_comfort_index_description_ = sensor; }
   void set_uv_index_sensor(sensor::Sensor *sensor) { uv_index_ = sensor; }
   void set_uv_exposure_level_text_sensor(text_sensor::TextSensor *sensor) { uv_exposure_level_ = sensor; }
+  Trigger<Record &> *get_on_data_change_trigger() { return &this->on_data_change_trigger_; }
+  Trigger<> *get_on_error_trigger() { return &this->on_error_trigger_; }
 
  protected:
-  Trigger<Record &> on_data_change_trigger_{};
   TemplatableValue<std::string> api_key_;
   TemplatableValue<std::string> city_name_;
   TemplatableValue<std::string> town_name_;
@@ -700,12 +700,8 @@ class CWATownForecast : public PollingComponent {
   TemplatableValue<uint32_t> http_timeout_;
   time::RealTimeClock *rtc_{nullptr};
 
-  uint64_t last_hash_code_{0};
-  Record record_;
-  time_t sensor_expiration_time_{};
-
-  esphome::text_sensor::TextSensor *city_sensor_{nullptr};
-  esphome::text_sensor::TextSensor *town_sensor_{nullptr};
+  text_sensor::TextSensor *city_sensor_{nullptr};
+  text_sensor::TextSensor *town_sensor_{nullptr};
   text_sensor::TextSensor *last_updated_{nullptr};
   text_sensor::TextSensor *last_success_{nullptr};
   sensor::Sensor *temperature_{nullptr};
@@ -734,6 +730,13 @@ class CWATownForecast : public PollingComponent {
   text_sensor::TextSensor *min_comfort_index_description_{nullptr};
   sensor::Sensor *uv_index_{nullptr};
   text_sensor::TextSensor *uv_exposure_level_{nullptr};
+
+  Trigger<Record &> on_data_change_trigger_{};
+  Trigger<> on_error_trigger_{};
+
+  uint64_t last_hash_code_{0};
+  Record record_;
+  time_t sensor_expiration_time_{};
 
   bool send_request_();
   bool validate_config_();

@@ -8,6 +8,9 @@ text_sensor:
     reset_reason:
       name: "Reset Reason"
 
+  - platform: uptime
+    name: Uptime
+
 sensor:
   - platform: debug
     free:

@@ -92,6 +92,7 @@ This is an external component for ESPHome that fetches town weather forecast dat
 ##### Automation Triggers:
 
 *   **on_data_change** (Optional, Action): An automation action to be performed when new data is received. In Lambdas you can get the value from the trigger with `data`.
+*   **on_error** (Optional, Action): An automation action to be performed when a fetch error occurs.
 
 #### Sensors
 
