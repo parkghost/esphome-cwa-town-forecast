@@ -385,7 +385,7 @@ bool CWATownForecast::process_response_(Stream &stream, uint64_t &hash_code) {
 
                 // Adjust icon based on time of day
                 std::tm t = ts.to_tm();
-                sun.setCurrentDate(t.tm_hour + 1900, t.tm_mon + 1, t.tm_mday);
+                sun.setCurrentDate(t.tm_year + 1900, t.tm_mon + 1, t.tm_mday);
                 double sunrise = sun.calcSunrise();
                 double sunset = sun.calcSunset();
                 int sunrise_hour = static_cast<int>(sunrise / 60);
