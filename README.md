@@ -43,41 +43,45 @@ This is an external component for ESPHome that fetches town weather forecast dat
 * **city_name** (Required, string, templatable): The name of the city (e.g., "新北市").
 * **town_name** (Required, string, templatable): The name of the [town](https://opendata.cwa.gov.tw/opendatadoc/Opendata_City.pdf) (e.g., "中和區").
 * **mode** (Required, string): Forecast range mode. Default `3-DAYS`. Options:
-  * `3-DAYS` (鄉鎮天氣預報-XXX未來3天天氣預報)
-  * `7-DAYS` (鄉鎮天氣預報-XXX未來1週天氣預報)
+  * `3-DAYS`: 鄉鎮天氣預報-XXX未來3天天氣預報
+  * `7-DAYS`: 鄉鎮天氣預報-XXX未來1週天氣預報
 * **weather_elements** (Optional, list of strings): Forecast elements to fetch. Defaults to all available elements if not set. Limiting the number of `weather_elements` can help reduce memory usage. Options:
   * 3-DAYS Mode
-    - 溫度
-    - 露點溫度
-    - 相對濕度
-    - 體感溫度
-    - 舒適度指數
-    - 風速
-    - 風向
-    - 3小時降雨機率
-    - 天氣現象
-    - 天氣預報綜合描述
+    - `溫度`
+    - `露點溫度`
+    - `相對濕度`
+    - `體感溫度`
+    - `舒適度指數`
+    - `風速`
+    - `風向`
+    - `3小時降雨機率`
+    - `天氣現象`
+    - `天氣預報綜合描述`
 
   * 7-DAYS Mode
-    - 平均溫度
-    - 最高溫度
-    - 最低溫度
-    - 平均露點溫度
-    - 平均相對濕度
-    - 最高體感溫度
-    - 最低體感溫度
-    - 最大舒適度指數
-    - 最小舒適度指數
-    - 風速
-    - 風向
-    - 12小時降雨機率
-    - 天氣現象
-    - 紫外線指數
-    - 天氣預報綜合描述
+    - `平均溫度`
+    - `最高溫度`
+    - `最低溫度`
+    - `平均露點溫度`
+    - `平均相對濕度`
+    - `最高體感溫度`
+    - `最低體感溫度`
+    - `最大舒適度指數`
+    - `最小舒適度指數`
+    - `風速`
+    - `風向`
+    - `12小時降雨機率`
+    - `天氣現象`
+    - `紫外線指數`
+    - `天氣預報綜合描述`
 * **time_to** (Optional, Time): Specify a time offset (e.g., `12h`, `1d`) to fetch forecast data for a future time window. Reducing the time range can lower memory usage.
+* **clear_cache_early** (Optional, boolean): Whether to clear internal cache early before fetching new data to optimize memory usage. Default `AUTO`. Options:
+  - `AUTO`: Never clear internal cache early when PSRAM is present.
+  - `ON`: Clear internal cache early(Reduces heap pressure and fragmentation to optimize memory usage. Side effect: data is empty on response parse failure).
+  - `OFF`: Never clear internal cache early.
 * **fallback_to_first_element** (Optional, boolean): Whether to fallback to the first time element if no matching time is found when publishing data. Default `true`.
-* **sensor_expiry** (Optional, Time): Duration to retain last values after failures. Default `1h`.
 * **data_access** (Optional, boolean): Whether to retain fetched forecast data after publishing states. Default `false`. When disabled, data is cleared after publishing to optimize memory usage.
+* **sensor_expiry** (Optional, Time): Duration to retain last values after failures. Default `1h`.
 * **watchdog_timeout** (Optional, Time): Timeout for the request watchdog. Default `30s`.
 * **http_connect_timeout** (Optional, Time): HTTP connect timeout. Default `5s`.
 * **http_timeout** (Optional, Time): HTTP read timeout. Default `10s`.
@@ -218,7 +222,7 @@ cwa_town_forecast:
     id: town_forecast_id
     city_name: 新北市
     town_name: 中和區
-    mode: 3-DAYS
+    mode: 7-DAYS
 ```
 
 #### Use In Lambdas

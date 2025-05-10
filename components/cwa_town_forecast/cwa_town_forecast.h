@@ -40,6 +40,25 @@ static inline std::string mode_to_string(Mode mode) {
   }
 }
 
+enum ClearCacheEarly {
+  Auto,
+  On,
+  Off,
+};
+
+static inline std::string clear_cache_early_to_string(ClearCacheEarly mode) {
+  switch (mode) {
+    case ClearCacheEarly::Auto:
+      return "Auto";
+    case ClearCacheEarly::On:
+      return "On";
+    case ClearCacheEarly::Off:
+      return "Off";
+    default:
+      return "Unknown";
+  }
+}
+
 // Mapping of city names to their corresponding resource IDs
 static const std::set<std::string> CITY_NAMES = {
     "宜蘭縣", "桃園市", "新竹縣", "苗栗縣", "彰化縣", "南投縣", "雲林縣", "嘉義縣", "屏東縣", "臺東縣", "花蓮縣",
@@ -572,6 +591,8 @@ class CWATownForecast : public PollingComponent {
 
   void set_time(time::RealTimeClock *rtc) { rtc_ = rtc; }
 
+  void set_mode(Mode mode) { mode_ = mode; }
+
   template <typename V>
   void set_api_key(V key) {
     api_key_ = key;
@@ -585,11 +606,6 @@ class CWATownForecast : public PollingComponent {
   template <typename V>
   void set_town_name(V town_name) {
     town_name_ = town_name;
-  }
-
-  template <typename V>
-  void set_mode(V mode) {
-    mode_ = mode;
   }
 
   void add_weather_element(const std::string &weather_element) { this->weather_elements_.insert(weather_element); }
@@ -610,10 +626,17 @@ class CWATownForecast : public PollingComponent {
   void set_fallback_to_first_element(V fallback) {
     fallback_to_first_element_ = fallback;
   }
+
   template <typename V>
   void set_data_access(V clear) {
     data_access_ = clear;
   }
+
+  template <typename V>
+  void set_clear_cache_early(V clear_cache_early) {
+    clear_cache_early_ = clear_cache_early;
+  }
+
   template <typename V>
   void set_watchdog_timeout(V watchdog_timeout) {
     watchdog_timeout_ = watchdog_timeout;
@@ -662,18 +685,19 @@ class CWATownForecast : public PollingComponent {
 
  protected:
   Trigger<Record &> on_data_change_trigger_{};
-  TemplatableValue<bool> data_access_;
   TemplatableValue<std::string> api_key_;
   TemplatableValue<std::string> city_name_;
   TemplatableValue<std::string> town_name_;
   Mode mode_;
   std::set<std::string> weather_elements_;
   TemplatableValue<uint32_t> time_to_;
+  TemplatableValue<ClearCacheEarly> clear_cache_early_;
+  TemplatableValue<bool> fallback_to_first_element_;
+  TemplatableValue<bool> data_access_;
+  TemplatableValue<uint32_t> sensor_expiry_;
   TemplatableValue<uint32_t> watchdog_timeout_;
   TemplatableValue<uint32_t> http_connect_timeout_;
   TemplatableValue<uint32_t> http_timeout_;
-  TemplatableValue<uint32_t> sensor_expiry_;
-  TemplatableValue<bool> fallback_to_first_element_;
   time::RealTimeClock *rtc_{nullptr};
 
   uint64_t last_hash_code_{0};

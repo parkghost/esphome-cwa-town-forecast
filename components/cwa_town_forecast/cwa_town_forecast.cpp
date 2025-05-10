@@ -85,9 +85,10 @@ void CWATownForecast::dump_config() {
   } else {
     ESP_LOGCONFIG(TAG, "  Time To: %lu hours", static_cast<unsigned long>(time_to_.value() / 1000 / 3600));
   }
+  ESP_LOGCONFIG(TAG, "  Clear Cache Early: %s", clear_cache_early_to_string(clear_cache_early_.value()).c_str());
   ESP_LOGCONFIG(TAG, "  Fallback to First Element: %s", fallback_to_first_element_.value() ? "true" : "false");
-  ESP_LOGCONFIG(TAG, "  Sensor Expiry: %u minutes", sensor_expiry_.value() / 1000 / 60);
   ESP_LOGCONFIG(TAG, "  Data Access: %s", data_access_.value() ? "true" : "false");
+  ESP_LOGCONFIG(TAG, "  Sensor Expiry: %u minutes", sensor_expiry_.value() / 1000 / 60);
   ESP_LOGCONFIG(TAG, "  Watchdog Timeout: %u ms", watchdog_timeout_.value());
   ESP_LOGCONFIG(TAG, "  HTTP Connect Timeout: %u ms", http_connect_timeout_.value());
   ESP_LOGCONFIG(TAG, "  HTTP Timeout: %u ms", http_timeout_.value());
@@ -308,6 +309,26 @@ bool CWATownForecast::process_response_(Stream &stream, uint64_t &hash_code) {
   if (!stream.find("\"WeatherElement\":[")) {
     ESP_LOGE(TAG, "Could not find WeatherElement array");
     return false;
+  }
+
+  bool psram_available = false;
+#if defined(CONFIG_SPIRAM_SUPPORT)
+#include "esp_spiram.h"
+  psram_available = psramFound();
+#endif
+
+  switch (clear_cache_early_.value()) {
+    case Auto:
+      if (!psram_available) {
+        ESP_LOGD(TAG, "[Auto] Clearing weather elements cache early");
+        this->record_.weather_elements.clear();
+      }
+      break;
+
+    case On:
+      ESP_LOGD(TAG, "[On] Clearing weather elements cache early");
+      this->record_.weather_elements.clear();
+      break;
   }
 
   ESPTime now = this->rtc_->now();

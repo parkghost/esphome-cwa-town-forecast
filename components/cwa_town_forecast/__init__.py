@@ -13,12 +13,22 @@ CWATownForecastRecord = cwa_town_forecast_ns.struct("Record")
 CWATownForecastRecordRef = CWATownForecastRecord.operator("ref")
 
 CWATownForecastMode = cwa_town_forecast_ns.enum("Mode")
+CWATownForecastClearCacheEarly = cwa_town_forecast_ns.enum("ClearCacheEarly")
 
 MODE_THREE_DAYS = "3-DAYS"
 MODE_SEVEN_DAYS = "7-DAYS"
 Mode = {
     MODE_THREE_DAYS: CWATownForecastMode.ThreeDays,
     MODE_SEVEN_DAYS: CWATownForecastMode.SevenDays,
+}
+
+CLEAR_CACHE_EARLY_AUTO = "AUTO"
+CLEAR_CACHE_EARLY_ON = "ON"
+CLEAR_CACHE_EARLY_OFF = "OFF"
+ClearCacheEarly = {
+    CLEAR_CACHE_EARLY_AUTO: CWATownForecastClearCacheEarly.Auto,
+    CLEAR_CACHE_EARLY_ON: CWATownForecastClearCacheEarly.On,
+    CLEAR_CACHE_EARLY_OFF: CWATownForecastClearCacheEarly.Off,
 }
 
 CONF_CWA_TOWN_FORECAST_ID = "cwa_town_forecast_id"
@@ -32,6 +42,7 @@ CONF_WEATHER_ELEMENTS = "weather_elements"
 CONF_FALLBACK_TO_FIRST_ELEMENT = "fallback_to_first_element"
 CONF_SENSOR_EXPIRY = "sensor_expiry"
 CONF_DATA_ACCESS = "data_access"
+CONF_CLEAR_CACHE_EARLY = "clear_cache_early"
 CONF_ON_DATA_CHANGE = "on_data_change"
 
 CONF_WATCHDOG_TIMEOUT = "watchdog_timeout"
@@ -147,6 +158,7 @@ CONFIG_SCHEMA = cv.All(
                     )
                 ),
                 cv.Optional(CONF_DATA_ACCESS, default=False): cv.templatable(cv.boolean),
+                cv.Optional(CONF_CLEAR_CACHE_EARLY, default=CLEAR_CACHE_EARLY_AUTO): cv.templatable(cv.enum(ClearCacheEarly, upper=True)),
                 cv.Optional(CONF_ON_DATA_CHANGE): automation.validate_automation(),
                 cv.Optional(CONF_WATCHDOG_TIMEOUT, default="30s"): cv.templatable(
                     cv.All(
@@ -211,6 +223,9 @@ async def to_code(configs):
         if CONF_DATA_ACCESS in config:
             access = await cg.templatable(config[CONF_DATA_ACCESS], [], cg.bool_)
             cg.add(var.set_data_access(access))
+        if CONF_CLEAR_CACHE_EARLY in config:
+            clear_cache_early = await cg.templatable(config[CONF_CLEAR_CACHE_EARLY], [], cg.std_string)
+            cg.add(var.set_clear_cache_early(clear_cache_early))
         for trigger in config.get(CONF_ON_DATA_CHANGE, []):
             await automation.build_automation(
                 var.get_on_data_change_trigger(),
