@@ -65,7 +65,7 @@ cwa_town_forecast:
     mode: 3-DAYS
     time_to: 1d
     id: town_forecast_id
-    data_access: true
+    retain_fetched_data: true
 
 select:
   - platform: template

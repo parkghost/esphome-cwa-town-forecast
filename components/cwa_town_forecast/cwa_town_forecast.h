@@ -40,19 +40,19 @@ static inline std::string mode_to_string(Mode mode) {
   }
 }
 
-enum ClearCacheEarly {
+enum EarlyDataClear {
   Auto,
   On,
   Off,
 };
 
-static inline std::string clear_cache_early_to_string(ClearCacheEarly mode) {
+static inline std::string early_data_clear_to_string(EarlyDataClear mode) {
   switch (mode) {
-    case ClearCacheEarly::Auto:
+    case EarlyDataClear::Auto:
       return "Auto";
-    case ClearCacheEarly::On:
+    case EarlyDataClear::On:
       return "On";
-    case ClearCacheEarly::Off:
+    case EarlyDataClear::Off:
       return "Off";
     default:
       return "Unknown";
@@ -121,7 +121,6 @@ static const std::set<std::string> WEATHER_ELEMENT_NAMES_7DAYS = {
     WEATHER_ELEMENT_NAME_UV_INDEX,
 };
 
-// Data structures for parsed forecast records using std types
 enum class ElementValueKey {
   TEMPERATURE,
   DEW_POINT,
@@ -627,13 +626,13 @@ class CWATownForecast : public PollingComponent {
   }
 
   template <typename V>
-  void set_data_access(V clear) {
-    data_access_ = clear;
+  void set_retain_fetched_data(V retain) {
+    retain_fetched_data_ = retain;
   }
 
   template <typename V>
-  void set_clear_cache_early(V clear_cache_early) {
-    clear_cache_early_ = clear_cache_early;
+  void set_early_data_clear(V early_data_clear) {
+    early_data_clear_ = early_data_clear;
   }
 
   template <typename V>
@@ -651,7 +650,7 @@ class CWATownForecast : public PollingComponent {
     http_timeout_ = http_timeout;
   }
 
-  void clear_cache() { record_.weather_elements.clear(); }
+  void clear_data() { record_.weather_elements.clear(); }
 
   Record &get_data();
 
@@ -693,9 +692,9 @@ class CWATownForecast : public PollingComponent {
   Mode mode_;
   std::set<std::string> weather_elements_;
   TemplatableValue<uint32_t> time_to_;
-  TemplatableValue<ClearCacheEarly> clear_cache_early_;
+  TemplatableValue<EarlyDataClear> early_data_clear_;
   TemplatableValue<bool> fallback_to_first_element_;
-  TemplatableValue<bool> data_access_;
+  TemplatableValue<bool> retain_fetched_data_;
   TemplatableValue<uint32_t> sensor_expiry_;
   TemplatableValue<uint32_t> watchdog_timeout_;
   TemplatableValue<uint32_t> http_connect_timeout_;

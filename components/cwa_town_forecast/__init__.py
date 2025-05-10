@@ -13,7 +13,7 @@ CWATownForecastRecord = cwa_town_forecast_ns.struct("Record")
 CWATownForecastRecordRef = CWATownForecastRecord.operator("ref")
 
 CWATownForecastMode = cwa_town_forecast_ns.enum("Mode")
-CWATownForecastClearCacheEarly = cwa_town_forecast_ns.enum("ClearCacheEarly")
+CWATownForecastEarlyDataClear = cwa_town_forecast_ns.enum("EarlyDataClear")
 
 MODE_THREE_DAYS = "3-DAYS"
 MODE_SEVEN_DAYS = "7-DAYS"
@@ -22,13 +22,13 @@ Mode = {
     MODE_SEVEN_DAYS: CWATownForecastMode.SevenDays,
 }
 
-CLEAR_CACHE_EARLY_AUTO = "AUTO"
-CLEAR_CACHE_EARLY_ON = "ON"
-CLEAR_CACHE_EARLY_OFF = "OFF"
-ClearCacheEarly = {
-    CLEAR_CACHE_EARLY_AUTO: CWATownForecastClearCacheEarly.Auto,
-    CLEAR_CACHE_EARLY_ON: CWATownForecastClearCacheEarly.On,
-    CLEAR_CACHE_EARLY_OFF: CWATownForecastClearCacheEarly.Off,
+EARLY_DATA_CLEAR_AUTO = "AUTO"
+EARLY_DATA_CLEAR_ON = "ON"
+EARLY_DATA_CLEAR_OFF = "OFF"
+EarlyDataClear = {
+    EARLY_DATA_CLEAR_AUTO: CWATownForecastEarlyDataClear.Auto,
+    EARLY_DATA_CLEAR_ON: CWATownForecastEarlyDataClear.On,
+    EARLY_DATA_CLEAR_OFF: CWATownForecastEarlyDataClear.Off,
 }
 
 CONF_CWA_TOWN_FORECAST_ID = "cwa_town_forecast_id"
@@ -41,8 +41,8 @@ CONF_MODE = "mode"
 CONF_WEATHER_ELEMENTS = "weather_elements"
 CONF_FALLBACK_TO_FIRST_ELEMENT = "fallback_to_first_element"
 CONF_SENSOR_EXPIRY = "sensor_expiry"
-CONF_DATA_ACCESS = "data_access"
-CONF_CLEAR_CACHE_EARLY = "clear_cache_early"
+CONF_RETAIN_FETCHED_DATA = "retain_fetched_data"
+CONF_EARLY_DATA_CLEAR = "early_data_clear"
 CONF_ON_DATA_CHANGE = "on_data_change"
 CONF_ON_ERROR = "on_error"
 
@@ -158,8 +158,12 @@ CONFIG_SCHEMA = cv.All(
                         cv.positive_time_period_milliseconds,
                     )
                 ),
-                cv.Optional(CONF_DATA_ACCESS, default=False): cv.templatable(cv.boolean),
-                cv.Optional(CONF_CLEAR_CACHE_EARLY, default=CLEAR_CACHE_EARLY_AUTO): cv.templatable(cv.enum(ClearCacheEarly, upper=True)),
+                cv.Optional(CONF_RETAIN_FETCHED_DATA, default=False): cv.templatable(
+                    cv.boolean
+                ),
+                cv.Optional(
+                    CONF_EARLY_DATA_CLEAR, default=EARLY_DATA_CLEAR_AUTO
+                ): cv.templatable(cv.enum(EarlyDataClear, upper=True)),
                 cv.Optional(CONF_ON_DATA_CHANGE): automation.validate_automation(),
                 cv.Optional(CONF_ON_ERROR): automation.validate_automation(),
                 cv.Optional(CONF_WATCHDOG_TIMEOUT, default="30s"): cv.templatable(
@@ -220,14 +224,20 @@ async def to_code(configs):
             )
             cg.add(var.set_fallback_to_first_element(fallback))
         if CONF_SENSOR_EXPIRY in config:
-            sensor_expiry = await cg.templatable(config[CONF_SENSOR_EXPIRY], [], cg.uint32)
+            sensor_expiry = await cg.templatable(
+                config[CONF_SENSOR_EXPIRY], [], cg.uint32
+            )
             cg.add(var.set_sensor_expiry(sensor_expiry))
-        if CONF_DATA_ACCESS in config:
-            access = await cg.templatable(config[CONF_DATA_ACCESS], [], cg.bool_)
-            cg.add(var.set_data_access(access))
-        if CONF_CLEAR_CACHE_EARLY in config:
-            clear_cache_early = await cg.templatable(config[CONF_CLEAR_CACHE_EARLY], [], cg.std_string)
-            cg.add(var.set_clear_cache_early(clear_cache_early))
+        if CONF_RETAIN_FETCHED_DATA in config:
+            access = await cg.templatable(
+                config[CONF_RETAIN_FETCHED_DATA], [], cg.bool_
+            )
+            cg.add(var.set_retain_fetched_data(access))
+        if CONF_EARLY_DATA_CLEAR in config:
+            early_data_clear = await cg.templatable(
+                config[CONF_EARLY_DATA_CLEAR], [], cg.std_string
+            )
+            cg.add(var.set_early_data_clear(early_data_clear))
         for trigger in config.get(CONF_ON_DATA_CHANGE, []):
             await automation.build_automation(
                 var.get_on_data_change_trigger(),
