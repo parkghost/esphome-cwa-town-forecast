@@ -6,6 +6,9 @@ substitutions:
 external_components:
   - source: components
 
+packages:
+  debug: !include debug.yaml
+
 logger:
   level: DEBUG
 
@@ -21,9 +24,6 @@ wifi:
   password: !secret wifi_password
 
 api:
-
-debug:
-  update_interval: 5s
 
 globals:
   - id: initial
@@ -211,14 +211,6 @@ sensor:
     uv_index:
       name: "7D UV Index"
 
-  - platform: debug
-    free:
-      name: "Heap Free"
-    block:
-      name: "Heap Max Block"
-    loop_time:
-      name: "Loop Time"
-
 text_sensor:
   - platform: cwa_town_forecast
     mode: 3-DAYS
@@ -281,12 +273,6 @@ text_sensor:
       name: "7D Last Updated"
     last_success:
       name: "7D Last Success"
-
-  - platform: debug
-    device:
-      name: "Device Info"
-    reset_reason:
-      name: "Reset Reason"
 
 script:
   - id: update_forecast_3d

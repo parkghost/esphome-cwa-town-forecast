@@ -6,6 +6,9 @@ substitutions:
 external_components:
   - source: components
 
+packages:
+  debug: !include debug.yaml
+
 logger:
   level: DEBUG
 
@@ -21,9 +24,6 @@ wifi:
   password: !secret wifi_password
 
 api:
-
-debug:
-  update_interval: 5s
 
 web_server:
   version: 3
@@ -164,14 +164,6 @@ button:
 # 3-DAYS Mode
 
 sensor:
-  - platform: debug
-    free:
-      name: "Heap Free"
-    block:
-      name: "Heap Max Block"
-    loop_time:
-      name: "Loop Time"
-
   - platform: cwa_town_forecast
     mode: 3-DAYS
     temperature:
@@ -188,12 +180,6 @@ sensor:
       name: "Probability Of Precipitation (3H)"
 
 text_sensor:
-  - platform: debug
-    device:
-      name: "Device Info"
-    reset_reason:
-      name: "Reset Reason"
-
   - platform: cwa_town_forecast
     mode: 3-DAYS
     comfort_index:
@@ -224,14 +210,6 @@ text_sensor:
 # 7-DAYS Mode
 
 # sensor:
-#   - platform: debug
-#     free:
-#       name: "Heap Free"
-#     block:
-#       name: "Heap Max Block"
-#     loop_time:
-#       name: "Loop Time"
-#
 #   - platform: cwa_town_forecast
 #     mode: 7-DAYS
 #     temperature:
@@ -256,12 +234,6 @@ text_sensor:
 #       name: "UV Index"
 
 # text_sensor:
-#   - platform: debug
-#     device:
-#       name: "Device Info"
-#     reset_reason:
-#       name: "Reset Reason"
-#
 #   - platform: cwa_town_forecast
 #     mode: 7-DAYS
 #     max_comfort_index:

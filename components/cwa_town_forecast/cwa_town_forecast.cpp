@@ -478,7 +478,8 @@ bool CWATownForecast::process_response_(Stream &stream, uint64_t &hash_code) {
       }
     }
   }
-  
+
+  // Swap the temporary record with the main record
   this->record_.mode = temp_record.mode;
   this->record_.locations_name = temp_record.locations_name;
   this->record_.location_name = temp_record.location_name;
@@ -487,7 +488,6 @@ bool CWATownForecast::process_response_(Stream &stream, uint64_t &hash_code) {
   this->record_.start_time = temp_record.start_time;
   this->record_.end_time = temp_record.end_time;
   this->record_.updated_time = temp_record.updated_time;
-  
   // Use swap for the vector to avoid allocator comparison
   this->record_.weather_elements.clear();
   this->record_.weather_elements.swap(temp_record.weather_elements);
