@@ -299,8 +299,8 @@ script:
             return;
           }
 
-          auto forecast_3d_data = id(town_forecast_3d).get_data();
-          auto forecast_7d_data = id(town_forecast_7d).get_data();
+          auto data_3d = id(town_forecast_3d).get_data();
+          auto data_7d = id(town_forecast_7d).get_data();
           bool fallback = true;
 
           auto now = id(esp_time).now();
@@ -312,69 +312,68 @@ script:
           ESP_LOGI("forecast", "Current time: %s", now.strftime("%Y-%m-%d %H:%M:%S").c_str());
 
           ESP_LOGI("forecast", "Current Forecast(Nearly 1-3 hours):");
-          ESP_LOGI("forecast", "  LocationsName: %s", forecast_3d_data.locations_name.c_str());
-          ESP_LOGI("forecast", "  LocationName: %s", forecast_3d_data.location_name.c_str());
-          ESP_LOGI("forecast", "  Temperature: %s°C", forecast_3d_data.find_value(ElementValueKey::TEMPERATURE, fallback, now.to_c_tm()).c_str());
-          ESP_LOGI("forecast", "  Dew Point: %s°C", forecast_3d_data.find_value(ElementValueKey::DEW_POINT, fallback, now.to_c_tm()).c_str());
-          ESP_LOGI("forecast", "  Apparent Temperature: %s°C", forecast_3d_data.find_value(ElementValueKey::APPARENT_TEMPERATURE, fallback, now.to_c_tm()).c_str());
-          ESP_LOGI("forecast", "  Comfort Index: %s", forecast_3d_data.find_value(ElementValueKey::COMFORT_INDEX, fallback, now.to_c_tm()).c_str());
-          ESP_LOGI("forecast", "  Comfort Index Description: %s", forecast_3d_data.find_value(ElementValueKey::COMFORT_INDEX_DESCRIPTION, fallback, now.to_c_tm()).c_str());
-          ESP_LOGI("forecast", "  Relative Humidity: %s%%", forecast_3d_data.find_value(ElementValueKey::RELATIVE_HUMIDITY, fallback, now.to_c_tm()).c_str());
-          ESP_LOGI("forecast", "  Wind Direction: %s", forecast_3d_data.find_value(ElementValueKey::WIND_DIRECTION, fallback, now.to_c_tm()).c_str());
-          ESP_LOGI("forecast", "  Wind Speed: %s m/s", forecast_3d_data.find_value(ElementValueKey::WIND_SPEED, fallback, now.to_c_tm()).c_str());
-          ESP_LOGI("forecast", "  Beaufort Scale: %s", forecast_3d_data.find_value(ElementValueKey::BEAUFORT_SCALE, fallback, now.to_c_tm()).c_str());
-          ESP_LOGI("forecast", "  Probability Of Precipitation: %s%%", forecast_3d_data.find_value(ElementValueKey::PROBABILITY_OF_PRECIPITATION, fallback, now.to_c_tm()).c_str());
-          ESP_LOGI("forecast", "  Weather: %s", forecast_3d_data.find_value(ElementValueKey::WEATHER, fallback, now.to_c_tm()).c_str());
-          ESP_LOGI("forecast", "  Weather Description: %s", forecast_3d_data.find_value(ElementValueKey::WEATHER_DESCRIPTION, fallback, now.to_c_tm()).c_str());
-          ESP_LOGI("forecast", "  Weather Code: %s", forecast_3d_data.find_value(ElementValueKey::WEATHER_CODE, fallback, now.to_c_tm()).c_str());
-          ESP_LOGI("forecast", "  Weather Icon: %s", forecast_3d_data.find_value(ElementValueKey::WEATHER_ICON, fallback, now.to_c_tm()).c_str());
+          ESP_LOGI("forecast", "  LocationsName: %s", data_3d.locations_name.c_str());
+          ESP_LOGI("forecast", "  LocationName: %s", data_3d.location_name.c_str());
+          ESP_LOGI("forecast", "  Temperature: %s°C", data_3d.find_value(ElementValueKey::TEMPERATURE, fallback, now.to_c_tm()).c_str());
+          ESP_LOGI("forecast", "  Dew Point: %s°C", data_3d.find_value(ElementValueKey::DEW_POINT, fallback, now.to_c_tm()).c_str());
+          ESP_LOGI("forecast", "  Apparent Temperature: %s°C", data_3d.find_value(ElementValueKey::APPARENT_TEMPERATURE, fallback, now.to_c_tm()).c_str());
+          ESP_LOGI("forecast", "  Comfort Index: %s", data_3d.find_value(ElementValueKey::COMFORT_INDEX, fallback, now.to_c_tm()).c_str());
+          ESP_LOGI("forecast", "  Comfort Index Description: %s", data_3d.find_value(ElementValueKey::COMFORT_INDEX_DESCRIPTION, fallback, now.to_c_tm()).c_str());
+          ESP_LOGI("forecast", "  Relative Humidity: %s%%", data_3d.find_value(ElementValueKey::RELATIVE_HUMIDITY, fallback, now.to_c_tm()).c_str());
+          ESP_LOGI("forecast", "  Wind Direction: %s", data_3d.find_value(ElementValueKey::WIND_DIRECTION, fallback, now.to_c_tm()).c_str());
+          ESP_LOGI("forecast", "  Wind Speed: %s m/s", data_3d.find_value(ElementValueKey::WIND_SPEED, fallback, now.to_c_tm()).c_str());
+          ESP_LOGI("forecast", "  Beaufort Scale: %s", data_3d.find_value(ElementValueKey::BEAUFORT_SCALE, fallback, now.to_c_tm()).c_str());
+          ESP_LOGI("forecast", "  Probability Of Precipitation: %s%%", data_3d.find_value(ElementValueKey::PROBABILITY_OF_PRECIPITATION, fallback, now.to_c_tm()).c_str());
+          ESP_LOGI("forecast", "  Weather: %s", data_3d.find_value(ElementValueKey::WEATHER, fallback, now.to_c_tm()).c_str());
+          ESP_LOGI("forecast", "  Weather Description: %s", data_3d.find_value(ElementValueKey::WEATHER_DESCRIPTION, fallback, now.to_c_tm()).c_str());
+          ESP_LOGI("forecast", "  Weather Code: %s", data_3d.find_value(ElementValueKey::WEATHER_CODE, fallback, now.to_c_tm()).c_str());
+          ESP_LOGI("forecast", "  Weather Icon: %s", data_3d.find_value(ElementValueKey::WEATHER_ICON, fallback, now.to_c_tm()).c_str());
           ESP_LOGI("forecast", "");
 
           ESP_LOGI("forecast", "Today's Forecast(From now until midnight):");
           std::tm start = mktm(now.year, now.month, now.day_of_month, 0, 0, 0);
           std::tm end = mktm(now.year, now.month, now.day_of_month, 23, 59, 59);
-          auto min_max = forecast_3d_data.find_min_max_values(ElementValueKey::TEMPERATURE, start, end);
+          auto min_max = data_3d.find_min_max_values(ElementValueKey::TEMPERATURE, start, end);
           ESP_LOGI("forecast", "  Temperature: %.0f-%.0f °C", min_max.first, min_max.second);
-          min_max = forecast_3d_data.find_min_max_values(ElementValueKey::APPARENT_TEMPERATURE, start, end);
+          min_max = data_3d.find_min_max_values(ElementValueKey::APPARENT_TEMPERATURE, start, end);
           ESP_LOGI("forecast", "  Apparent Temperature: %.0f-%.0f °C", min_max.first, min_max.second);
-          min_max = forecast_3d_data.find_min_max_values(ElementValueKey::RELATIVE_HUMIDITY, start, end);
+          min_max = data_3d.find_min_max_values(ElementValueKey::RELATIVE_HUMIDITY, start, end);
           ESP_LOGI("forecast", "  Relative Humidity: %.0f-%.0f %%", min_max.first, min_max.second);
           ESP_LOGI("forecast", "");
 
           // see https://www.cwa.gov.tw/V8/C/W/Town/Town.html?TID=6500300
           ESP_LOGI("forecast", "Current Forecast(Day/Night):");
-          ESP_LOGI("forecast", "  LocationsName: %s", forecast_7d_data.locations_name.c_str());
-          ESP_LOGI("forecast", "  LocationName: %s", forecast_7d_data.location_name.c_str());
-          ESP_LOGI("forecast", "  Avg Temperature: %s°C", forecast_7d_data.find_value(ElementValueKey::TEMPERATURE, fallback, now.to_c_tm()).c_str());
-          ESP_LOGI("forecast", "  Avg Dew Point: %s°C", forecast_7d_data.find_value(ElementValueKey::DEW_POINT, fallback, now.to_c_tm()).c_str());
-          ESP_LOGI("forecast", "  Avg Relative Humidity: %s%%", forecast_7d_data.find_value(ElementValueKey::RELATIVE_HUMIDITY, fallback, now.to_c_tm()).c_str());
-          ESP_LOGI("forecast", "  Max Temperature: %s°C", forecast_7d_data.find_value(ElementValueKey::MAX_TEMPERATURE, fallback, now.to_c_tm()).c_str());
-          ESP_LOGI("forecast", "  Min Temperature: %s°C", forecast_7d_data.find_value(ElementValueKey::MIN_TEMPERATURE, fallback, now.to_c_tm()).c_str());
-          ESP_LOGI("forecast", "  Max Apparent Temperature: %s°C", forecast_7d_data.find_value(ElementValueKey::MAX_APPARENT_TEMPERATURE, fallback, now.to_c_tm()).c_str());
-          ESP_LOGI("forecast", "  Min Apparent Temperature: %s°C", forecast_7d_data.find_value(ElementValueKey::MIN_APPARENT_TEMPERATURE, fallback, now.to_c_tm()).c_str());
-          ESP_LOGI("forecast", "  Max Comfort Index: %s", forecast_7d_data.find_value(ElementValueKey::MAX_COMFORT_INDEX, fallback, now.to_c_tm()).c_str());
-          ESP_LOGI("forecast", "  Min Comfort Index: %s", forecast_7d_data.find_value(ElementValueKey::MIN_COMFORT_INDEX, fallback, now.to_c_tm()).c_str());
-          ESP_LOGI("forecast", "  Max Comfort Index Description: %s", forecast_7d_data.find_value(ElementValueKey::MAX_COMFORT_INDEX_DESCRIPTION, fallback, now.to_c_tm()).c_str());
-          ESP_LOGI("forecast", "  Min Comfort Index Description: %s", forecast_7d_data.find_value(ElementValueKey::MIN_COMFORT_INDEX_DESCRIPTION, fallback, now.to_c_tm()).c_str());
-          ESP_LOGI("forecast", "  Probability Of Precipitation: %s%%", forecast_7d_data.find_value(ElementValueKey::PROBABILITY_OF_PRECIPITATION, fallback, now.to_c_tm()).c_str());
-          ESP_LOGI("forecast", "  UV Index: %s", forecast_7d_data.find_value(ElementValueKey::UV_INDEX, fallback, now.to_c_tm()).c_str());
-          ESP_LOGI("forecast", "  UV Exposure Level: %s", forecast_7d_data.find_value(ElementValueKey::UV_EXPOSURE_LEVEL, fallback, now.to_c_tm()).c_str());
-          ESP_LOGI("forecast", "  Weather: %s", forecast_7d_data.find_value(ElementValueKey::WEATHER, fallback, now.to_c_tm()).c_str());
-          ESP_LOGI("forecast", "  Weather Code: %s", forecast_7d_data.find_value(ElementValueKey::WEATHER_CODE, fallback, now.to_c_tm()).c_str());
-          ESP_LOGI("forecast", "  Weather Icon: %s", forecast_7d_data.find_value(ElementValueKey::WEATHER_ICON, fallback, now.to_c_tm()).c_str());
-          ESP_LOGI("forecast", "  Weather Description: %s", forecast_7d_data.find_value(ElementValueKey::WEATHER_DESCRIPTION, fallback, now.to_c_tm()).c_str());
-          ESP_LOGI("forecast", "  Wind Direction: %s", forecast_7d_data.find_value(ElementValueKey::WIND_DIRECTION, fallback, now.to_c_tm()).c_str());
-          ESP_LOGI("forecast", "  Wind Speed: %s m/s", forecast_7d_data.find_value(ElementValueKey::WIND_SPEED, fallback, now.to_c_tm()).c_str());
-          ESP_LOGI("forecast", "  Beaufort Scale: %s", forecast_7d_data.find_value(ElementValueKey::BEAUFORT_SCALE, fallback, now.to_c_tm()).c_str());
+          ESP_LOGI("forecast", "  LocationsName: %s", data_7d.locations_name.c_str());
+          ESP_LOGI("forecast", "  LocationName: %s", data_7d.location_name.c_str());
+          ESP_LOGI("forecast", "  Avg Temperature: %s°C", data_7d.find_value(ElementValueKey::TEMPERATURE, fallback, now.to_c_tm()).c_str());
+          ESP_LOGI("forecast", "  Avg Dew Point: %s°C", data_7d.find_value(ElementValueKey::DEW_POINT, fallback, now.to_c_tm()).c_str());
+          ESP_LOGI("forecast", "  Avg Relative Humidity: %s%%", data_7d.find_value(ElementValueKey::RELATIVE_HUMIDITY, fallback, now.to_c_tm()).c_str());
+          ESP_LOGI("forecast", "  Max Temperature: %s°C", data_7d.find_value(ElementValueKey::MAX_TEMPERATURE, fallback, now.to_c_tm()).c_str());
+          ESP_LOGI("forecast", "  Min Temperature: %s°C", data_7d.find_value(ElementValueKey::MIN_TEMPERATURE, fallback, now.to_c_tm()).c_str());
+          ESP_LOGI("forecast", "  Max Apparent Temperature: %s°C", data_7d.find_value(ElementValueKey::MAX_APPARENT_TEMPERATURE, fallback, now.to_c_tm()).c_str());
+          ESP_LOGI("forecast", "  Min Apparent Temperature: %s°C", data_7d.find_value(ElementValueKey::MIN_APPARENT_TEMPERATURE, fallback, now.to_c_tm()).c_str());
+          ESP_LOGI("forecast", "  Max Comfort Index: %s", data_7d.find_value(ElementValueKey::MAX_COMFORT_INDEX, fallback, now.to_c_tm()).c_str());
+          ESP_LOGI("forecast", "  Min Comfort Index: %s", data_7d.find_value(ElementValueKey::MIN_COMFORT_INDEX, fallback, now.to_c_tm()).c_str());
+          ESP_LOGI("forecast", "  Max Comfort Index Description: %s", data_7d.find_value(ElementValueKey::MAX_COMFORT_INDEX_DESCRIPTION, fallback, now.to_c_tm()).c_str());
+          ESP_LOGI("forecast", "  Min Comfort Index Description: %s", data_7d.find_value(ElementValueKey::MIN_COMFORT_INDEX_DESCRIPTION, fallback, now.to_c_tm()).c_str());
+          ESP_LOGI("forecast", "  Probability Of Precipitation: %s%%", data_7d.find_value(ElementValueKey::PROBABILITY_OF_PRECIPITATION, fallback, now.to_c_tm()).c_str());
+          ESP_LOGI("forecast", "  UV Index: %s", data_7d.find_value(ElementValueKey::UV_INDEX, fallback, now.to_c_tm()).c_str());
+          ESP_LOGI("forecast", "  UV Exposure Level: %s", data_7d.find_value(ElementValueKey::UV_EXPOSURE_LEVEL, fallback, now.to_c_tm()).c_str());
+          ESP_LOGI("forecast", "  Weather: %s", data_7d.find_value(ElementValueKey::WEATHER, fallback, now.to_c_tm()).c_str());
+          ESP_LOGI("forecast", "  Weather Code: %s", data_7d.find_value(ElementValueKey::WEATHER_CODE, fallback, now.to_c_tm()).c_str());
+          ESP_LOGI("forecast", "  Weather Icon: %s", data_7d.find_value(ElementValueKey::WEATHER_ICON, fallback, now.to_c_tm()).c_str());
+          ESP_LOGI("forecast", "  Weather Description: %s", data_7d.find_value(ElementValueKey::WEATHER_DESCRIPTION, fallback, now.to_c_tm()).c_str());
+          ESP_LOGI("forecast", "  Wind Direction: %s", data_7d.find_value(ElementValueKey::WIND_DIRECTION, fallback, now.to_c_tm()).c_str());
+          ESP_LOGI("forecast", "  Wind Speed: %s m/s", data_7d.find_value(ElementValueKey::WIND_SPEED, fallback, now.to_c_tm()).c_str());
+          ESP_LOGI("forecast", "  Beaufort Scale: %s", data_7d.find_value(ElementValueKey::BEAUFORT_SCALE, fallback, now.to_c_tm()).c_str());
           ESP_LOGI("forecast", "");
 
           // see https://www.cwa.gov.tw/V8/C/W/Town/Town.html?TID=6500300
           ESP_LOGI("forecast", "7-Day Forecast(Day/Night):");
           {
-            const auto &record = forecast_7d_data;
             auto now_tm = now.to_c_tm();
             for (int d = 0; d < 7; ++d) {
-              // noon entry
+              // daytime
               std::tm noon = now_tm;
               noon.tm_mday += d;
               noon.tm_hour = 12; noon.tm_min = 0; noon.tm_sec = 0;
@@ -382,23 +381,23 @@ script:
               auto esp_noon = tm_to_esptime(noon);
               auto date_str = esp_noon.strftime("%Y-%m-%d");
               auto weekday = esp_noon.strftime("%a");
-              std::string min_val = record.find_value(ElementValueKey::MIN_TEMPERATURE, false, noon);
-              std::string max_val = record.find_value(ElementValueKey::MAX_TEMPERATURE, false, noon);
-              std::string icon = record.find_value(ElementValueKey::WEATHER_ICON, false, noon);
-              std::string rain = record.find_value(ElementValueKey::PROBABILITY_OF_PRECIPITATION, false, noon);
+              std::string min_val = data_7d.find_value(ElementValueKey::MIN_TEMPERATURE, false, noon);
+              std::string max_val = data_7d.find_value(ElementValueKey::MAX_TEMPERATURE, false, noon);
+              std::string icon = data_7d.find_value(ElementValueKey::WEATHER_ICON, false, noon);
+              std::string rain = data_7d.find_value(ElementValueKey::PROBABILITY_OF_PRECIPITATION, false, noon);
               ESP_LOGI("forecast", "  %s %s %s: icon %s, rain %s%%, min %s°C, max %s°C",
                        date_str.c_str(),weekday.c_str(),  "(Day)  ", icon.c_str(), rain.c_str(), min_val.c_str(), max_val.c_str());
 
-              // night entry
+              // nighttime
               std::tm night = now_tm;
               night.tm_mday += d;
               night.tm_hour = 21; night.tm_min = 0; night.tm_sec = 0;
               std::mktime(&night);
               auto esp_night = tm_to_esptime(night);
-              std::string min_val2 = record.find_value(ElementValueKey::MIN_TEMPERATURE, false, night);
-              std::string max_val2 = record.find_value(ElementValueKey::MAX_TEMPERATURE, false, night);
-              std::string icon2 = record.find_value(ElementValueKey::WEATHER_ICON, false, night);
-              std::string rain2 = record.find_value(ElementValueKey::PROBABILITY_OF_PRECIPITATION, false, night);
+              std::string min_val2 = data_7d.find_value(ElementValueKey::MIN_TEMPERATURE, false, night);
+              std::string max_val2 = data_7d.find_value(ElementValueKey::MAX_TEMPERATURE, false, night);
+              std::string icon2 = data_7d.find_value(ElementValueKey::WEATHER_ICON, false, night);
+              std::string rain2 = data_7d.find_value(ElementValueKey::PROBABILITY_OF_PRECIPITATION, false, night);
               ESP_LOGI("forecast", "  %s %s %s: icon %s, rain %s%%, min %s°C, max %s°C",
                        date_str.c_str(), weekday.c_str(), "(Night)",icon2.c_str(), rain2.c_str(), min_val2.c_str(), max_val2.c_str());
             }
