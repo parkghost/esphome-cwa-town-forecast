@@ -51,6 +51,10 @@ void CWATownForecast::update() {
     this->status_set_warning();
     this->on_error_trigger_.trigger();
 
+    if (this->last_error_) {
+      this->last_error_->publish_state(now.strftime("%Y-%m-%d %H:%M:%S"));
+    }
+
     time_t epoch = std::mktime(&tm);
     char now_buf[20];
     std::strftime(now_buf, sizeof(now_buf), "%Y-%m-%d %H:%M:%S", &tm);

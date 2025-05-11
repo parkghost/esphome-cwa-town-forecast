@@ -14,6 +14,7 @@ CONF_CITY = "city"
 CONF_TOWN = "town"
 CONF_LAST_UPDATED = "last_updated"
 CONF_LAST_SUCCESS = "last_success"
+CONF_LAST_ERROR = "last_error"
 CONF_COMFORT_INDEX_DESCRIPTION = "comfort_index_description"
 CONF_WEATHER = "weather"
 CONF_WEATHER_CODE = "weather_code"
@@ -59,7 +60,7 @@ TEXT_SENSORS = list(
     set(
         TEXT_SENSORS_3DAYS
         + TEXT_SENSORS_7DAYS
-        + [CONF_LAST_UPDATED, CONF_LAST_SUCCESS, CONF_CITY, CONF_TOWN]
+        + [CONF_LAST_UPDATED, CONF_LAST_SUCCESS, CONF_LAST_ERROR, CONF_CITY, CONF_TOWN]
     )
 )
 
@@ -70,6 +71,10 @@ DIAGNOSTIC_SCHEMA = cv.Schema(
             entity_category="diagnostic",
         ),
         cv.Optional(CONF_LAST_SUCCESS): text_sensor.text_sensor_schema(
+            icon="mdi:calendar-clock",
+            entity_category="diagnostic",
+        ),
+        cv.Optional(CONF_LAST_ERROR): text_sensor.text_sensor_schema(
             icon="mdi:calendar-clock",
             entity_category="diagnostic",
         ),

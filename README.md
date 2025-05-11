@@ -142,6 +142,8 @@ text_sensor:
       name: "Last Updated"
     last_success:
       name: "Last Success"
+    last_error:
+      name: "Last Error"
 ```
 
 ##### 7-DAYS Mode
@@ -204,6 +206,8 @@ text_sensor:
       name: "Last Updated"
     last_success:
       name: "Last Success"
+    last_error:
+      name: "Last Error"
 ```
 
 #### Example

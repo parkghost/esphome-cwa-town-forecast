@@ -658,6 +658,7 @@ class CWATownForecast : public PollingComponent {
   void set_town_text_sensor(text_sensor::TextSensor *town) { town_sensor_ = town; }
   void set_last_updated_text_sensor(text_sensor::TextSensor *sensor) { last_updated_ = sensor; }
   void set_last_success_text_sensor(text_sensor::TextSensor *sensor) { last_success_ = sensor; }
+  void set_last_error_text_sensor(text_sensor::TextSensor *sensor) { last_error_ = sensor; }
   void set_temperature_sensor(sensor::Sensor *sensor) { temperature_ = sensor; }
   void set_dew_point_sensor(sensor::Sensor *sensor) { dew_point_ = sensor; }
   void set_apparent_temperature_sensor(sensor::Sensor *sensor) { apparent_temperature_ = sensor; }
@@ -705,6 +706,7 @@ class CWATownForecast : public PollingComponent {
   text_sensor::TextSensor *town_sensor_{nullptr};
   text_sensor::TextSensor *last_updated_{nullptr};
   text_sensor::TextSensor *last_success_{nullptr};
+  text_sensor::TextSensor *last_error_{nullptr};
   sensor::Sensor *temperature_{nullptr};
   sensor::Sensor *dew_point_{nullptr};
   sensor::Sensor *apparent_temperature_{nullptr};
