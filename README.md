@@ -1,6 +1,6 @@
 # ESPHome CWA Town Forecast Component
 
-This is an external component for ESPHome that fetches town weather forecast data from Taiwan's Central Weather Administration (CWA) Open Data platform.
+This is an external component for ESPHome that fetches [town weather forecast](https://www.cwa.gov.tw/V8/C/K/CommonFaq/forecast_all.html) data from [Taiwan's Central Weather Administration (CWA) Open Data platform](https://opendata.cwa.gov.tw/).
 
 > For a complete example using this component with an e-paper display, see the [Weather Panel YAML](https://github.com/parkghost/esphome-epaper-examples/blob/main/weather-panel.yaml) in the [esphome-epaper-examples](https://github.com/parkghost/esphome-epaper-examples) repository.
 
@@ -43,8 +43,8 @@ This is an external component for ESPHome that fetches town weather forecast dat
 * **city_name** (Required, string, templatable): The name of the city (e.g., "新北市").
 * **town_name** (Required, string, templatable): The name of the [town](https://opendata.cwa.gov.tw/opendatadoc/Opendata_City.pdf) (e.g., "中和區").
 * **mode** (Required, string): Forecast range mode. Default `3-DAYS`. Options:
-  * `3-DAYS`: 鄉鎮天氣預報-XXX未來3天天氣預報
-  * `7-DAYS`: 鄉鎮天氣預報-XXX未來1週天氣預報
+  * `3-DAYS`: [e.g. 鄉鎮天氣預報-新北市未來3天天氣預報](https://opendata.cwa.gov.tw/dist/opendata-swagger.html#/%E9%A0%90%E5%A0%B1/get_v1_rest_datastore_F_D0047_069)
+  * `7-DAYS`: [e.g. 鄉鎮天氣預報-新北市未來1週天氣預報](https://opendata.cwa.gov.tw/dist/opendata-swagger.html#/%E9%A0%90%E5%A0%B1/get_v1_rest_datastore_F_D0047_071)
 * **weather_elements** (Optional, list of strings): Forecast elements to fetch. Defaults to all available elements if not set. Limiting the number of `weather_elements` can help reduce memory usage. Options:
   * 3-DAYS Mode
     - `溫度`
