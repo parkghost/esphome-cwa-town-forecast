@@ -43,8 +43,8 @@ This external component for ESPHome fetches [town weather forecast](https://www.
 * **city_name** (Required, string, templatable): The name of the city (e.g., "新北市").
 * **town_name** (Required, string, templatable): The name of the [town](https://opendata.cwa.gov.tw/opendatadoc/Opendata_City.pdf) (e.g., "中和區").
 * **mode** (Required, string): Forecast range mode. Default `3-DAYS`. Options:
-  * `3-DAYS`: [e.g. 鄉鎮天氣預報-新北市未來3天天氣預報](https://opendata.cwa.gov.tw/dist/opendata-swagger.html#/%E9%A0%90%E5%A0%B1/get_v1_rest_datastore_F_D0047_069)
-  * `7-DAYS`: [e.g. 鄉鎮天氣預報-新北市未來1週天氣預報](https://opendata.cwa.gov.tw/dist/opendata-swagger.html#/%E9%A0%90%E5%A0%B1/get_v1_rest_datastore_F_D0047_071)
+  * `3-DAYS`: [e.g. 鄉鎮天氣預報-新北市未來3天天氣預報](https://opendata.cwa.gov.tw/dataset/all/F-D0047-069)
+  * `7-DAYS`: [e.g. 鄉鎮天氣預報-新北市未來1週天氣預報](https://opendata.cwa.gov.tw/dataset/all/F-D0047-071)
 * **weather_elements** (Optional, list of strings): Forecast elements to fetch. Defaults to all available elements if not set. Limiting the number of `weather_elements` can help reduce memory usage. Options:
   * 3-DAYS Mode
     - `溫度`
