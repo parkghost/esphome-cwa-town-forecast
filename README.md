@@ -1,6 +1,6 @@
 # ESPHome CWA Town Forecast Component
 
-This is an external component for ESPHome that fetches [town weather forecast](https://www.cwa.gov.tw/V8/C/K/CommonFaq/forecast_all.html) data from [Taiwan's Central Weather Administration (CWA) Open Data platform](https://opendata.cwa.gov.tw/).
+This external component for ESPHome fetches [town weather forecast](https://www.cwa.gov.tw/V8/C/K/CommonFaq/forecast_all.html) data in either **3-DAYS** or **7-DAYS** from Taiwan’s Central Weather Administration (CWA) Open Data platform.
 
 > For a complete example using this component with an e-paper display, see the [Weather Panel YAML](https://github.com/parkghost/esphome-epaper-examples/blob/main/weather-panel.yaml) in the [esphome-epaper-examples](https://github.com/parkghost/esphome-epaper-examples) repository.
 
@@ -482,3 +482,50 @@ display:
           it.printf(width / 2, height / 2, id(icon_weather_font), BLACK, TextAlign::CENTER, unicode_icon.c_str());
       }
 ```
+
+#### Weather Elements and Weather Element Values
+
+##### 3-DAYS [Reference Source](resources/town_forecast_api_3d_simplified.json)
+
+| ElementName       | ElementValue Key      | Example Value   |
+|-------------------|-----------------------|-----------------|
+| 溫度              | TEMPERATURE           | 22              |
+| 露點溫度          | DEW_POINT             | 19              |
+| 相對濕度          | RELATIVE_HUMIDITY     | 85              |
+| 體感溫度          | APPARENT_TEMPERATURE  | 24              |
+| 舒適度指數        | COMFORT_INDEX         | 21              |
+| 舒適度指數        | COMFORT_INDEX_DESCRIPTION | 舒適         |
+| 風速              | WIND_SPEED            | 2               |
+| 風速              | BEAUFORT_SCALE        | 2               |
+| 風向              | WIND_DIRECTION        | 東北風          |
+| 3小時降雨機率     | PROBABILITY_OF_PRECIPITATION | 80      |
+| 天氣現象          | WEATHER               | 短暫陣雨        |
+| 天氣現象          | WEATHER_CODE          | 08              |
+| 天氣現象          | WEATHER_ICON          | pouring         |
+| 天氣預報綜合描述  | WEATHER_DESCRIPTION   | 短暫陣雨。降雨機率80%。溫度攝氏22度。舒適。東北風 平均風速1-2級(每秒2公尺)。相對濕度83至85%。 |
+
+##### 7-DAYS [Reference Source](resources/town_forecast_api_7d_simplified.json)
+
+| ElementName         | ElementValue Key              | Example Value   |
+|---------------------|-------------------------------|-----------------|
+| 平均溫度            | TEMPERATURE                   | 28              |
+| 最高溫度            | MAX_TEMPERATURE               | 30              |
+| 最低溫度            | MIN_TEMPERATURE               | 26              |
+| 平均露點溫度        | DEW_POINT                     | 21              |
+| 平均相對濕度        | RELATIVE_HUMIDITY             | 65              |
+| 最高體感溫度        | MAX_APPARENT_TEMPERATURE      | 31              |
+| 最低體感溫度        | MIN_APPARENT_TEMPERATURE      | 27              |
+| 最大舒適度指數      | MAX_COMFORT_INDEX             | 26              |
+| 最大舒適度指數      | MAX_COMFORT_INDEX_DESCRIPTION | 舒適            |
+| 最小舒適度指數      | MIN_COMFORT_INDEX             | 24              |
+| 最小舒適度指數      | MIN_COMFORT_INDEX_DESCRIPTION | 舒適            |
+| 風速                | WIND_SPEED                    | 5               |
+| 風速                | BEAUFORT_SCALE                | 3               |
+| 風向                | WIND_DIRECTION                | 東南風          |
+| 12小時降雨機率      | PROBABILITY_OF_PRECIPITATION  | 0               |
+| 紫外線指數          | UV_INDEX                      | 8               |
+| 紫外線曝曬等級      | UV_EXPOSURE_LEVEL             | 過量級          |
+| 天氣現象            | WEATHER                       | 晴時多雲        |
+| 天氣現象            | WEATHER_CODE                  | 02              |
+| 天氣現象            | WEATHER_ICON                  | partly-cloudy   |
+| 天氣預報綜合描述    | WEATHER_DESCRIPTION           | 晴時多雲。降雨機率0%。溫度攝氏26至30度。舒適。東南風 風速3級(每秒5公尺)。相對濕度65%。 |
