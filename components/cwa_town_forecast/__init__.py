@@ -18,17 +18,17 @@ CWATownForecastEarlyDataClear = cwa_town_forecast_ns.enum("EarlyDataClear")
 MODE_THREE_DAYS = "3-DAYS"
 MODE_SEVEN_DAYS = "7-DAYS"
 Mode = {
-    MODE_THREE_DAYS: CWATownForecastMode.ThreeDays,
-    MODE_SEVEN_DAYS: CWATownForecastMode.SevenDays,
+    MODE_THREE_DAYS: CWATownForecastMode.THREE_DAYS,
+    MODE_SEVEN_DAYS: CWATownForecastMode.SEVEN_DAYS,
 }
 
 EARLY_DATA_CLEAR_AUTO = "AUTO"
 EARLY_DATA_CLEAR_ON = "ON"
 EARLY_DATA_CLEAR_OFF = "OFF"
 EarlyDataClear = {
-    EARLY_DATA_CLEAR_AUTO: CWATownForecastEarlyDataClear.Auto,
-    EARLY_DATA_CLEAR_ON: CWATownForecastEarlyDataClear.On,
-    EARLY_DATA_CLEAR_OFF: CWATownForecastEarlyDataClear.Off,
+    EARLY_DATA_CLEAR_AUTO: CWATownForecastEarlyDataClear.AUTO,
+    EARLY_DATA_CLEAR_ON: CWATownForecastEarlyDataClear.ON,
+    EARLY_DATA_CLEAR_OFF: CWATownForecastEarlyDataClear.OFF,
 }
 
 CONF_CWA_TOWN_FORECAST_ID = "cwa_town_forecast_id"

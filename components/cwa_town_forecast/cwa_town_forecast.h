@@ -25,35 +25,35 @@ static const char *const TAG = "cwa_town_forecast";
 static constexpr int UV_LOOKAHEAD_MINUTES = 90;
 
 enum Mode {
-  ThreeDays,
-  SevenDays,
+  THREE_DAYS,
+  SEVEN_DAYS,
 };
 
 static inline std::string mode_to_string(Mode mode) {
   switch (mode) {
-    case Mode::ThreeDays:
-      return "ThreeDays";
-    case Mode::SevenDays:
-      return "SevenDays";
+    case Mode::THREE_DAYS:
+      return "3-DAYS";
+    case Mode::SEVEN_DAYS:
+      return "7-DAYS";
     default:
       return "Unknown";
   }
 }
 
 enum EarlyDataClear {
-  Auto,
-  On,
-  Off,
+  AUTO,
+  ON,
+  OFF,
 };
 
 static inline std::string early_data_clear_to_string(EarlyDataClear mode) {
   switch (mode) {
-    case EarlyDataClear::Auto:
-      return "Auto";
-    case EarlyDataClear::On:
-      return "On";
-    case EarlyDataClear::Off:
-      return "Off";
+    case EarlyDataClear::AUTO:
+      return "AUTO";
+    case EarlyDataClear::ON:
+      return "ON";
+    case EarlyDataClear::OFF:
+      return "OFF";
     default:
       return "Unknown";
   }
@@ -186,7 +186,7 @@ static inline std::string element_value_key_to_string(ElementValueKey key) {
 
 // Map ElementValueKey to WeatherElementName based on Mode
 static const std::unordered_map<Mode, std::unordered_map<ElementValueKey, std::string>> MODE_ELEMENT_NAME_MAP = {
-    {Mode::ThreeDays,
+    {Mode::THREE_DAYS,
      {
          {ElementValueKey::TEMPERATURE, WEATHER_ELEMENT_NAME_TEMPERATURE},
          {ElementValueKey::DEW_POINT, WEATHER_ELEMENT_NAME_DEW_POINT},
@@ -203,7 +203,7 @@ static const std::unordered_map<Mode, std::unordered_map<ElementValueKey, std::s
          {ElementValueKey::WIND_SPEED, WEATHER_ELEMENT_NAME_WIND_SPEED},
          {ElementValueKey::BEAUFORT_SCALE, WEATHER_ELEMENT_NAME_WIND_SPEED},
      }},
-    {Mode::SevenDays,
+    {Mode::SEVEN_DAYS,
      {
          {ElementValueKey::TEMPERATURE, WEATHER_ELEMENT_NAME_AVG_TEMPERATURE},
          {ElementValueKey::DEW_POINT, WEATHER_ELEMENT_NAME_AVG_DEW_POINT},

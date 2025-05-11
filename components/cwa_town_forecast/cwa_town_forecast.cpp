@@ -126,7 +126,7 @@ bool CWATownForecast::validate_config_() {
   if (!this->weather_elements_.empty()) {
     Mode mode = this->mode_;
     const std::set<std::string> *valid_names;
-    if (mode == Mode::ThreeDays) {
+    if (mode == Mode::THREE_DAYS) {
       valid_names = &WEATHER_ELEMENT_NAMES_3DAYS;
     } else {
       valid_names = &WEATHER_ELEMENT_NAMES_7DAYS;
@@ -160,14 +160,14 @@ bool CWATownForecast::send_request_() {
 #endif
 
   switch (early_data_clear_.value()) {
-    case Auto:
+    case AUTO:
       if (!psram_available) {
         ESP_LOGD(TAG, "[Auto] Clear forecast data before sending request");
         this->record_.weather_elements.clear();
       }
       break;
 
-    case On:
+    case ON:
       ESP_LOGD(TAG, "[On] Clear forecast data before sending request");
       this->record_.weather_elements.clear();
       break;
@@ -178,7 +178,7 @@ bool CWATownForecast::send_request_() {
   // Get the appropriate resource ID based on forecast mode
   Mode mode = mode_;
   std::string resource_id;
-  const auto &mapping = (mode == Mode::ThreeDays ? CITY_NAME_TO_3D_RESOURCE_ID_MAP : CITY_NAME_TO_7D_RESOURCE_ID_MAP);
+  const auto &mapping = (mode == Mode::THREE_DAYS ? CITY_NAME_TO_3D_RESOURCE_ID_MAP : CITY_NAME_TO_7D_RESOURCE_ID_MAP);
   auto it = mapping.find(city_name);
   if (it == mapping.end()) {
     ESP_LOGE(TAG, "Invalid city name: %s", city_name.c_str());
@@ -293,7 +293,7 @@ bool CWATownForecast::process_response_(Stream &stream, uint64_t &hash_code) {
     return false;
   }
   temp_record.mode = this->mode_;
-  temp_record.weather_elements.reserve(this->mode_ == Mode::ThreeDays ? WEATHER_ELEMENT_NAMES_3DAYS.size() : WEATHER_ELEMENT_NAMES_7DAYS.size());
+  temp_record.weather_elements.reserve(this->mode_ == Mode::THREE_DAYS ? WEATHER_ELEMENT_NAMES_3DAYS.size() : WEATHER_ELEMENT_NAMES_7DAYS.size());
   if (!stream.find("\"LocationsName\":\"")) {
     ESP_LOGE(TAG, "Could not find LocationsName");
     return false;
@@ -654,7 +654,7 @@ void CWATownForecast::publish_states_() {
   bool fallback = this->fallback_to_first_element_.value();
 
   // Publish weather states based on forecast mode
-  if (mode_ == Mode::ThreeDays) {
+  if (mode_ == Mode::THREE_DAYS) {
     // 3-day mode sensors
     if (this->temperature_) publish_sensor_state_(this->temperature_, ElementValueKey::TEMPERATURE, target_tm, fallback);
     if (this->dew_point_) publish_sensor_state_(this->dew_point_, ElementValueKey::DEW_POINT, target_tm, fallback);
@@ -672,7 +672,7 @@ void CWATownForecast::publish_states_() {
     if (this->weather_icon_) publish_text_sensor_state_(this->weather_icon_, ElementValueKey::WEATHER_ICON, target_tm, fallback);
     if (this->wind_direction_) publish_text_sensor_state_(this->wind_direction_, ElementValueKey::WIND_DIRECTION, target_tm, fallback);
     if (this->beaufort_scale_) publish_text_sensor_state_(this->beaufort_scale_, ElementValueKey::BEAUFORT_SCALE, target_tm, fallback);
-  } else if (mode_ == Mode::SevenDays) {
+  } else if (mode_ == Mode::SEVEN_DAYS) {
     // 7-day mode sensors
     if (this->temperature_) publish_sensor_state_(this->temperature_, ElementValueKey::TEMPERATURE, target_tm, fallback);
     if (this->dew_point_) publish_sensor_state_(this->dew_point_, ElementValueKey::DEW_POINT, target_tm, fallback);
