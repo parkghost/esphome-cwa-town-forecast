@@ -42,27 +42,14 @@ time:
   - platform: sntp
     id: esp_time
     timezone: $timezone
-    servers:
-      - time1.google.com
-      - time2.google.com
-      - time3.google.com
     on_time:
       - cron: "0 /30 * * * *"
         then:
-          if:
-            condition:
-              - wifi.connected:
-              - time.has_time:
-            then:
-              - script.execute: update_forecast_3d
-      - cron: "0 0 6,18 * * *"
+          - script.execute: update_forecast_3d
+
+      - cron: "0 0 /3 * * *"
         then:
-          if:
-            condition:
-              - wifi.connected:
-              - time.has_time:
-            then:
-              - script.execute: update_forecast_7d
+          - script.execute: update_forecast_7d
     on_time_sync:
       then:
         - lambda: |-
@@ -123,7 +110,7 @@ select:
       - "屏東縣"
     initial_option: $default_city_name
     optimistic: true
-    entity_category: "config"
+    entity_category: config
 
 text:
   - platform: template
@@ -135,7 +122,7 @@ text:
     mode: text
     restore_value: true
     initial_value: $default_town_name
-    entity_category: "config"
+    entity_category: config
 
 button:
   - platform: template
@@ -154,6 +141,11 @@ button:
       - script.execute: update_forecast_all
 
   - platform: template
+    name: "Analyze Forecast Data"
+    on_press:
+      - script.execute: analyze_data
+
+  - platform: template
     name: "Dump Forecast 3D Data"
     on_press:
       - lambda: |-
@@ -166,9 +158,22 @@ button:
           id(town_forecast_7d)->get_data().dump();
 
   - platform: template
-    name: "Analyze Forecast Data"
+    name: "Clear Forecast 3D Data"
+    entity_category: diagnostic
     on_press:
-      - script.execute: analyze_data
+      - lambda: |-
+          ESP_LOGI("diagnostic", "Before clear data: free heap:%u, max block:%u", ESP.getFreeHeap(), heap_caps_get_largest_free_block(MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL));
+          id(town_forecast_3d).clear_data();
+          ESP_LOGI("diagnostic", "After clear data: free heap:%u, max block:%u", ESP.getFreeHeap(), heap_caps_get_largest_free_block(MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL));
+
+  - platform: template
+    name: "Clear Forecast 7D Data"
+    entity_category: diagnostic
+    on_press:
+      - lambda: |-
+          ESP_LOGI("diagnostic", "Before clear data: free heap:%u, max block:%u", ESP.getFreeHeap(), heap_caps_get_largest_free_block(MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL));
+          id(town_forecast_7d).clear_data();
+          ESP_LOGI("diagnostic", "After clear data: free heap:%u, max block:%u", ESP.getFreeHeap(), heap_caps_get_largest_free_block(MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL));
 
 sensor:
   - platform: cwa_town_forecast
@@ -281,18 +286,33 @@ text_sensor:
 script:
   - id: update_forecast_3d
     then:
-      - component.update: town_forecast_3d
+      if:
+        condition:
+          - time.has_time:
+          - wifi.connected:
+        then:
+          - component.update: town_forecast_3d
 
   - id: update_forecast_7d
     then:
-      - component.update: town_forecast_7d
+      if:
+        condition:
+          - time.has_time:
+          - wifi.connected:
+        then:
+          - component.update: town_forecast_7d
 
   - id: update_forecast_all
     then:
-      - script.execute: update_forecast_3d
-      - script.wait: update_forecast_3d
-      - script.execute: update_forecast_7d
-      - script.wait: update_forecast_7d
+      if:
+        condition:
+          - time.has_time:
+          - wifi.connected:
+        then:
+          - script.execute: update_forecast_3d
+          - script.wait: update_forecast_3d
+          - script.execute: update_forecast_7d
+          - script.wait: update_forecast_7d
 
   - id: analyze_data
     then:

@@ -38,18 +38,10 @@ time:
   - platform: sntp
     id: esp_time
     timezone: $timezone
-    servers:
-      - time1.google.com
-      - time2.google.com
-      - time3.google.com
     on_time:
       - cron: "00 /30 * * * *"
         then:
-          if:
-            condition:
-              wifi.connected:
-            then:
-              - script.execute: update_forecast
+          - script.execute: update_forecast
     on_time_sync:
       then:
         - lambda: |-
@@ -66,6 +58,37 @@ cwa_town_forecast:
     time_to: 1d
     id: town_forecast_id
     retain_fetched_data: true
+    on_data_change:
+      - lambda: |-
+          using namespace cwa_town_forecast;
+          ESP_LOGI("forecast", "Town: %s", data.location_name.c_str());
+
+          auto now = id(esp_time).now();
+          if(!now.is_valid()) {
+            ESP_LOGW("forecast", "Invalid time");
+            return;
+          }
+
+          bool fallback_to_first_element = true;
+          ESP_LOGI("forecast", "Temperature: %s°C Humidity: %s%% %s",
+            data.find_value(ElementValueKey::TEMPERATURE, fallback_to_first_element, now.to_c_tm()).c_str(),
+            data.find_value(ElementValueKey::RELATIVE_HUMIDITY, fallback_to_first_element, now.to_c_tm()).c_str(),
+            data.find_value(ElementValueKey::WEATHER, fallback_to_first_element, now.to_c_tm()).c_str()
+          );
+
+          std::tm start = mktm(now.year, now.month, now.day_of_month, 0, 0, 0);
+          std::tm end = mktm(now.year, now.month, now.day_of_month, 23, 59, 59);
+          auto min_max = data.find_min_max_values(ElementValueKey::TEMPERATURE, start, end);
+          ESP_LOGI("forecast", "Today's Temperature: %.0f-%.0f °C", min_max.first, min_max.second);
+
+          auto we = data.find_weather_element(WEATHER_ELEMENT_NAME_TEMPERATURE);
+          if(we) {
+            ESP_LOGI("forecast", "Weather Element: %s", we->element_name.c_str());
+            auto filtered_times = we->filter_times(start, end);
+            for (const auto &ts : filtered_times) {
+              ESP_LOGI("forecast", "  %s Temperature: %s °C", ts.to_esptime().strftime("%H:%M").c_str(), ts.find_element_value(ElementValueKey::TEMPERATURE).c_str());
+            }
+          }
 
 select:
   - platform: template
@@ -97,7 +120,7 @@ select:
       - "屏東縣"
     initial_option: $default_city_name
     optimistic: true
-    entity_category: "config"
+    entity_category: config
 
 text:
   - platform: template
@@ -109,45 +132,17 @@ text:
     mode: text
     restore_value: true
     initial_value: $default_town_name
-    entity_category: "config"
+    entity_category: config
 
 script:
   - id: update_forecast
     then:
-      - lambda: |-
-          using namespace cwa_town_forecast;
-          auto now = id(esp_time).now();
-          if(!now.is_valid()) {
-            ESP_LOGW("forecast", "Invalid time");
-            return;
-          }
-
-          auto forecast = id(town_forecast_id);
-          forecast->update();
-          auto data = forecast->get_data();
-
-          ESP_LOGI("forecast", "Town: %s", data.location_name.c_str());
-
-          bool fallback_to_first_element = true;
-          ESP_LOGI("forecast", "Temperature: %s°C Humidity: %s%% %s",
-            data.find_value(ElementValueKey::TEMPERATURE, fallback_to_first_element, now.to_c_tm()).c_str(),
-            data.find_value(ElementValueKey::RELATIVE_HUMIDITY, fallback_to_first_element, now.to_c_tm()).c_str(),
-            data.find_value(ElementValueKey::WEATHER, fallback_to_first_element, now.to_c_tm()).c_str()
-          );
-
-          std::tm start = mktm(now.year, now.month, now.day_of_month, 0, 0, 0);
-          std::tm end = mktm(now.year, now.month, now.day_of_month, 23, 59, 59);
-          auto min_max = data.find_min_max_values(ElementValueKey::TEMPERATURE, start, end);
-          ESP_LOGI("forecast", "Today's Temperature: %.0f-%.0f °C", min_max.first, min_max.second);
-
-          auto we = data.find_weather_element(WEATHER_ELEMENT_NAME_TEMPERATURE);
-          if(we) {
-            ESP_LOGI("forecast", "Weather Element: %s", we->element_name.c_str());
-            auto filtered_times = we->filter_times(start, end);
-            for (const auto &ts : filtered_times) {
-              ESP_LOGI("forecast", "  %s Temperature: %s °C", ts.to_esptime().strftime("%H:%M").c_str(), ts.find_element_value(ElementValueKey::TEMPERATURE).c_str());
-            }
-          }
+      if:
+        condition:
+          - time.has_time:
+          - wifi.connected:
+        then:
+          - component.update: town_forecast_id
 
 button:
   - platform: template
@@ -160,6 +155,15 @@ button:
     on_press:
       - lambda: |-
           id(town_forecast_id)->get_data().dump();
+
+  - platform: template
+    name: "Clear Forecast Data"
+    entity_category: diagnostic
+    on_press:
+      - lambda: |-
+          ESP_LOGI("diagnostic", "Before clear data: free heap:%u, max block:%u", ESP.getFreeHeap(), heap_caps_get_largest_free_block(MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL));
+          id(town_forecast_id).clear_data();
+          ESP_LOGI("diagnostic", "After clear data: free heap:%u, max block:%u", ESP.getFreeHeap(), heap_caps_get_largest_free_block(MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL));
 
 # 3-DAYS Mode
 
