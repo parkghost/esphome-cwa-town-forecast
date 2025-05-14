@@ -362,6 +362,14 @@ bool CWATownForecast::process_response_(Stream &stream, uint64_t &hash_code) {
       return false;
     }
 
+    // check for empty array
+    int next = stream.peek();
+    if (next == ']') {
+      ESP_LOGW(TAG, "Empty Time array for %s, skipping element processing", we.element_name.c_str());
+      stream.read();
+      continue;
+    }
+
     do {
       DeserializationError err = deserializeJson(time_obj, stream);
       if (err) {
