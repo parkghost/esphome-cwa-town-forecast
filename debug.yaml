@@ -12,6 +12,9 @@ text_sensor:
     name: Uptime
 
 sensor:
+  - platform: wifi_signal
+    name: "WiFi Signal"
+
   - platform: debug
     free:
       name: "Heap Free"

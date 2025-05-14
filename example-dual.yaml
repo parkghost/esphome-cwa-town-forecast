@@ -23,6 +23,9 @@ wifi:
   ssid: !secret wifi_ssid
   password: !secret wifi_password
 
+ota:
+  - platform: esphome
+
 api:
 
 globals:
@@ -45,11 +48,7 @@ time:
     on_time:
       - cron: "0 /30 * * * *"
         then:
-          - script.execute: update_forecast_3d
-
-      - cron: "0 0 /3 * * *"
-        then:
-          - script.execute: update_forecast_7d
+          - script.execute: update_forecast_all
     on_time_sync:
       then:
         - lambda: |-
@@ -69,6 +68,13 @@ cwa_town_forecast:
     on_data_change:
       - lambda: |-
           id(town_forecast_3d_init) = true;
+          auto now = id(esp_time).now();
+          if(now.is_valid()){
+            id(forecast_3d_date_changed).publish_state(now.strftime("%Y-%m-%d %H:%M:%S"));
+            id(forecast_3d_start_end).publish_state(
+              cwa_town_forecast::tm_to_esptime(data.start_time).strftime("%Y-%m-%d %H:%M") + " ~ " +
+              cwa_town_forecast::tm_to_esptime(data.end_time).strftime("%Y-%m-%d %H:%M"));
+          }
 
   - api_key: !secret cwa_api_key
     id: town_forecast_7d
@@ -79,6 +85,13 @@ cwa_town_forecast:
     on_data_change:
       - lambda: |-
           id(town_forecast_7d_init) = true;
+          auto now = id(esp_time).now();
+          if(now.is_valid()){
+            id(forecast_7d_data_changed).publish_state(now.strftime("%Y-%m-%d %H:%M:%S"));
+            id(forecast_7d_start_end).publish_state(
+              cwa_town_forecast::tm_to_esptime(data.start_time).strftime("%Y-%m-%d %H:%M") + " ~ " +
+              cwa_town_forecast::tm_to_esptime(data.end_time).strftime("%Y-%m-%d %H:%M"));
+          }
 
 select:
   - platform: template
@@ -147,12 +160,14 @@ button:
 
   - platform: template
     name: "Dump Forecast 3D Data"
+    entity_category: diagnostic
     on_press:
       - lambda: |-
           id(town_forecast_3d)->get_data().dump();
 
   - platform: template
     name: "Dump Forecast 7D Data"
+    entity_category: diagnostic
     on_press:
       - lambda: |-
           id(town_forecast_7d)->get_data().dump();
@@ -282,6 +297,26 @@ text_sensor:
       name: "7D Last Success"
     last_error:
       name: "7D Last Error"
+
+  - platform: template
+    id: forecast_3d_date_changed
+    name: "3D Data Changed"
+    entity_category: diagnostic
+
+  - platform: template
+    id: forecast_7d_data_changed
+    name: "7D Data Changed"
+    entity_category: diagnostic
+
+  - platform: template
+    id: forecast_3d_start_end
+    name: "3D Data Start/End"
+    entity_category: diagnostic
+
+  - platform: template
+    id: forecast_7d_start_end
+    name: "7D Data Start/End"
+    entity_category: diagnostic
 
 script:
   - id: update_forecast_3d
@@ -426,24 +461,3 @@ script:
                        date_str.c_str(), weekday.c_str(), "(Night)",icon2.c_str(), rain2.c_str(), min_val2.c_str(), max_val2.c_str());
             }
           }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
