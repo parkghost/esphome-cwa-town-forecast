@@ -75,10 +75,10 @@ This external component for ESPHome fetches [town weather forecast](https://www.
     - `紫外線指數`
     - `天氣預報綜合描述`
 * **time_to** (Optional, Time, templatable): Specify a time offset (e.g., `2h`, `1d`) to fetch forecast data for a future time window. Reducing the time range can lower memory usage.
-* **early_data_clear** (Optional, string): Whether to clear internal cache early before fetching new data to optimize memory usage. Default `AUTO`. Options:
-  - `AUTO`: Never clear internal cache early when PSRAM is present.
-  - `ON`: Clear internal cache early(Reduces heap pressure and fragmentation to optimize memory usage. Side effect: data is empty on fetch failure).
-  - `OFF`: Never clear internal cache early.
+* **early_data_clear** (Optional, string): Whether to clear data early before fetching new data to optimize memory usage. Default `AUTO`. Options:
+  - `AUTO`: Never clear data early when PSRAM is present.
+  - `ON`: Clear data early(Reduces heap pressure and fragmentation to optimize memory usage. Side effect: data is empty on fetch failure).
+  - `OFF`: Never clear data early.
 * **fallback_to_first_element** (Optional, boolean, templatable): Whether to fallback to the first time element if no matching time is found when publishing data. Default `true`.
 * **retain_fetched_data** (Optional, boolean, templatable): Whether to retain fetched forecast data after publishing states. Default `false`. When disabled, data is cleared after publishing to optimize memory usage.
 * **sensor_expiry** (Optional, Time, templatable): Duration to retain last values after failures. Default `1h`.
