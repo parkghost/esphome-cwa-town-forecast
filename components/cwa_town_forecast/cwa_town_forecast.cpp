@@ -512,6 +512,16 @@ bool CWATownForecast::process_response_(Stream &stream, uint64_t &hash_code) {
   for (const auto &we : temp_record.weather_elements) {
     combine(we.element_name);
     for (const auto &ts : we.times) {
+      if (ts.data_time) {
+        time_t t = std::mktime(ts.data_time.get());
+        combine(std::to_string(t));
+      } else if (ts.start_time && ts.end_time) {
+        time_t t1 = std::mktime(ts.start_time.get());
+        time_t t2 = std::mktime(ts.end_time.get());
+        combine(std::to_string(t1));
+        combine(std::to_string(t2));
+      }
+
       for (const auto &p : ts.element_values) {
         combine(element_value_key_to_string(p.first) + p.second);
       }
