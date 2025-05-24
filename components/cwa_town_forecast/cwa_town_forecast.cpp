@@ -107,21 +107,22 @@ void CWATownForecast::dump_config() {
 
 // Validates the configuration parameters.
 bool CWATownForecast::validate_config_() {
+  bool valid = true;
   if (api_key_.value().empty()) {
     ESP_LOGE(TAG, "API Key not set");
-    return false;
+    valid = false;
   }
   if (city_name_.value().empty()) {
     ESP_LOGE(TAG, "City name not set");
-    return false;
+    valid = false;
   }
   if (CITY_NAMES.find(city_name_.value()) == CITY_NAMES.end()) {
     ESP_LOGE(TAG, "Invalid city name: %s", city_name_.value().c_str());
-    return false;
+    valid = false;
   }
   if (town_name_.value().empty()) {
     ESP_LOGE(TAG, "Town name not set");
-    return false;
+    valid = false;
   }
   if (!this->weather_elements_.empty()) {
     Mode mode = this->mode_;
@@ -134,11 +135,16 @@ bool CWATownForecast::validate_config_() {
     for (const auto &element_name : this->weather_elements_) {
       if (valid_names->find(element_name) == valid_names->end()) {
         ESP_LOGE(TAG, "Invalid weather element for mode %s: %s", mode_to_string(mode).c_str(), element_name.c_str());
-        return false;
+        valid = false;
       }
     }
   }
-  return true;
+
+  if (sensor_expiry_.value() < 0) {
+    ESP_LOGE(TAG, "Sensor Expiry must be greater or equal to 0");
+    valid = false;
+  }
+  return valid;
 }
 
 // Sends HTTP request to fetch forecast data.
