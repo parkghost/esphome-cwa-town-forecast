@@ -139,12 +139,6 @@ CONFIG_SCHEMA = cv.All(
                     cv.Optional(
                         CONF_UV_EXPOSURE_LEVEL
                     ): text_sensor.text_sensor_schema(),
-                    cv.Optional(CONF_CITY): text_sensor.text_sensor_schema(
-                        entity_category="diagnostic"
-                    ),
-                    cv.Optional(CONF_TOWN): text_sensor.text_sensor_schema(
-                        entity_category="diagnostic"
-                    ),
                 }
             )
             .extend(DIAGNOSTIC_SCHEMA)
