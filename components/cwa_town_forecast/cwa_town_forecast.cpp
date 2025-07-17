@@ -353,8 +353,7 @@ bool CWATownForecast::process_response_(Stream &stream, uint64_t &hash_code) {
   sun.setPosition(temp_record.latitude, temp_record.longitude, timezone_offset);
   ESP_LOGD(TAG, "Sunset Latitude: %f, Longitude: %f, Offset: %d", temp_record.latitude, temp_record.longitude, timezone_offset);
 
-  const size_t chunk_capacity = 1000;
-  ArduinoJson::DynamicJsonDocument time_obj(chunk_capacity);
+  ArduinoJson::JsonDocument time_obj;
   do {
     App.feed_wdt();
     WeatherElement we;
@@ -384,7 +383,7 @@ bool CWATownForecast::process_response_(Stream &stream, uint64_t &hash_code) {
       }
 
       Time ts;
-      if (time_obj.containsKey("DataTime")) {
+      if (time_obj["DataTime"].is<std::string>()) {
         std::string tmp = time_obj["DataTime"].as<std::string>();
         ts.data_time = std::unique_ptr<std::tm>(new std::tm());
         if (!parse_iso8601(tmp, *ts.data_time)) {
@@ -392,7 +391,7 @@ bool CWATownForecast::process_response_(Stream &stream, uint64_t &hash_code) {
           return false;
         }
       }
-      if (time_obj.containsKey("StartTime")) {
+      if (time_obj["StartTime"].is<std::string>()) {
         std::string tmp = time_obj["StartTime"].as<std::string>();
         ts.start_time = std::unique_ptr<std::tm>(new std::tm());
         if (!parse_iso8601(tmp, *ts.start_time)) {
@@ -400,7 +399,7 @@ bool CWATownForecast::process_response_(Stream &stream, uint64_t &hash_code) {
           return false;
         }
       }
-      if (time_obj.containsKey("EndTime")) {
+      if (time_obj["EndTime"].is<std::string>()) {
         std::string tmp = time_obj["EndTime"].as<std::string>();
         ts.end_time = std::unique_ptr<std::tm>(new std::tm());
         if (!parse_iso8601(tmp, *ts.end_time)) {
@@ -543,9 +542,10 @@ bool CWATownForecast::process_response_(Stream &stream, uint64_t &hash_code) {
   this->record_.start_time = temp_record.start_time;
   this->record_.end_time = temp_record.end_time;
   this->record_.updated_time = temp_record.updated_time;
-  // Use swap for the vector to avoid allocator comparison
   this->record_.weather_elements.clear();
-  this->record_.weather_elements.swap(temp_record.weather_elements);
+  for (auto &&element : temp_record.weather_elements) {
+    this->record_.weather_elements.push_back(std::move(element));
+  }
   hash_code = new_hash;
   return true;
 }

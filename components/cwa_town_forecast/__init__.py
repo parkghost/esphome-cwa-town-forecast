@@ -191,6 +191,7 @@ CONFIG_SCHEMA = cv.All(
     ),
     cv.only_on_esp32,
     cv.only_with_arduino,
+    cv.require_esphome_version(2025, 7, 0)
 )
 
 
@@ -262,7 +263,7 @@ async def to_code(configs):
             timeout = await cg.templatable(config[CONF_HTTP_TIMEOUT], [], cg.uint32)
             cg.add(var.set_http_timeout(timeout))
 
-    cg.add_library("WiFiClientSecure", None)
+    cg.add_library("NetworkClientSecure", None)
     cg.add_library("HTTPClient", None)
     cg.add_library("UrlEncode", None)
     cg.add_library("sunset", None)

@@ -215,7 +215,7 @@ text_sensor:
 ```yaml
 external_components:
   - source: github://parkghost/esphome-cwa-town-forecast
-    components: [ cwa_town_forecast ]
+    components: [cwa_town_forecast]
 
 time:
   - platform: sntp
