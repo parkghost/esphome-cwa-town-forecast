@@ -17,7 +17,12 @@ esphome:
   friendly_name: Town Forecast Example (Dual)
 
 esp32:
-  board: esp32-c3-devkitm-1
+  variant: esp32s3
+  board: esp32-s3-devkitc-1
+
+psram:
+  mode: quad
+  speed: 80MHz
 
 wifi:
   ssid: !secret wifi_ssid
@@ -63,7 +68,6 @@ cwa_town_forecast:
     city_name: !lambda return id(city_name).state;
     town_name: !lambda return id(town_name).state;
     mode: 3-DAYS
-    time_to: 1d
     retain_fetched_data: true
     on_data_change:
       - lambda: |-
@@ -191,6 +195,10 @@ button:
           ESP_LOGI("diagnostic", "After clear data: free heap:%u, max block:%u", ESP.getFreeHeap(), heap_caps_get_largest_free_block(MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL));
 
 sensor:
+  - platform: debug
+    psram:
+      name: "Free PSRAM"
+
   - platform: cwa_town_forecast
     mode: 3-DAYS
     cwa_town_forecast_id: town_forecast_3d

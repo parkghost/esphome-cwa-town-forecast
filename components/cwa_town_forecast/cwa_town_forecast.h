@@ -6,6 +6,7 @@
 #include <memory>
 #include <set>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <vector>
 
@@ -18,6 +19,13 @@
 #include "esphome/core/time.h"
 
 namespace esphome {
+
+// Add missing operator== for RAMAllocator to support std::vector move operations
+template<class T> 
+bool operator==(const RAMAllocator<T>& lhs, const RAMAllocator<T>& rhs) {
+  return true;  // RAMAllocators are always equal for std::vector purposes
+}
+
 namespace cwa_town_forecast {
 
 static const char *const TAG = "cwa_town_forecast";
@@ -27,6 +35,53 @@ static constexpr int UV_LOOKAHEAD_MINUTES = 90;
 enum Mode {
   THREE_DAYS,
   SEVEN_DAYS,
+};
+
+// Memory management structures for transaction safety
+struct MinimalCheckpoint {
+  std::string locations_name;
+  std::string location_name;
+  double latitude;
+  double longitude;
+  Mode mode;
+  size_t element_count;
+  bool valid = false;
+  
+  MinimalCheckpoint() : latitude(NAN), longitude(NAN), mode(Mode::THREE_DAYS), element_count(0) {}
+};
+
+// Advanced Memory Management
+enum class MemoryStrategy {
+  PSRAM_DUAL_BUFFER,      // Use PSRAM for dual buffering
+  INTERNAL_CHECKPOINT,    // Use internal RAM with minimal checkpoint
+  ADAPTIVE_FRAGMENT,      // Adaptive strategy based on fragmentation
+  STREAM_MINIMAL          // Ultra-minimal streaming approach
+};
+
+struct MemoryStats {
+  size_t free_heap;
+  size_t max_block;
+  size_t total_heap;
+  size_t psram_free;
+  size_t psram_total;
+  float fragmentation_ratio;
+  bool has_psram;
+  
+  MemoryStats() : free_heap(0), max_block(0), total_heap(0), 
+                  psram_free(0), psram_total(0), fragmentation_ratio(0.0f), has_psram(false) {}
+};
+
+class AdaptiveMemoryManager {
+public:
+  static constexpr size_t MIN_HEAP_FOR_TEMP_RECORD = 45000;  // Minimum heap for temp record strategy
+  static constexpr size_t MIN_BLOCK_FOR_TEMP_RECORD = 20000; // Minimum block for temp record strategy
+  static constexpr float MAX_FRAGMENTATION_RATIO = 0.7f;      // Maximum fragmentation before switching strategy
+  
+  static MemoryStats get_current_stats();
+  static MemoryStrategy select_optimal_strategy(const MemoryStats& stats);
+  static void log_memory_decision(MemoryStrategy strategy, const MemoryStats& stats);
+  static bool should_use_psram_allocation(const MemoryStats& stats);
+  static bool is_memory_sufficient_for_temp_record(const MemoryStats& stats);
 };
 
 static inline std::string mode_to_string(Mode mode) {
@@ -229,7 +284,12 @@ static const std::unordered_map<Mode, std::unordered_map<ElementValueKey, std::s
      }},
 };
 
-static const std::map<std::string, std::string> WEATHER_CODE_TO_WEATHER_ICON_NAME_MAP = {
+struct WeatherCodeIcon {
+  const char* code;
+  const char* icon;
+};
+
+static constexpr WeatherCodeIcon WEATHER_CODE_TO_WEATHER_ICON_NAME_MAP[] = {
     {"01", "sunny"},             // mdi:weather-sunny
     {"02", "partly-cloudy"},     // mdi:weather-partly-cloudy
     {"03", "partly-cloudy"},     // mdi:weather-partly-cloudy
@@ -273,7 +333,24 @@ static const std::map<std::string, std::string> WEATHER_CODE_TO_WEATHER_ICON_NAM
     {"42", "snowy"},             // mdi:weather-snowy
 };
 
-static const std::map<std::string, std::string> CITY_NAME_TO_3D_RESOURCE_ID_MAP = {
+static constexpr size_t WEATHER_CODE_TO_WEATHER_ICON_NAME_MAP_SIZE = 
+    sizeof(WEATHER_CODE_TO_WEATHER_ICON_NAME_MAP) / sizeof(WEATHER_CODE_TO_WEATHER_ICON_NAME_MAP[0]);
+
+inline const char* find_weather_icon(const std::string& weather_code) {
+  for (size_t i = 0; i < WEATHER_CODE_TO_WEATHER_ICON_NAME_MAP_SIZE; ++i) {
+    if (weather_code == WEATHER_CODE_TO_WEATHER_ICON_NAME_MAP[i].code) {
+      return WEATHER_CODE_TO_WEATHER_ICON_NAME_MAP[i].icon;
+    }
+  }
+  return "";
+}
+
+struct CityResourcePair {
+  const char* city;
+  const char* resource_id;
+};
+
+static constexpr CityResourcePair CITY_NAME_TO_3D_RESOURCE_ID_MAP[] = {
     {"宜蘭縣", "F-D0047-001"}, {"桃園市", "F-D0047-005"}, {"新竹縣", "F-D0047-009"}, {"苗栗縣", "F-D0047-013"}, {"彰化縣", "F-D0047-017"},
     {"南投縣", "F-D0047-021"}, {"雲林縣", "F-D0047-025"}, {"嘉義縣", "F-D0047-029"}, {"屏東縣", "F-D0047-033"}, {"臺東縣", "F-D0047-037"},
     {"花蓮縣", "F-D0047-041"}, {"澎湖縣", "F-D0047-045"}, {"基隆市", "F-D0047-049"}, {"新竹市", "F-D0047-053"}, {"嘉義市", "F-D0047-057"},
@@ -281,13 +358,36 @@ static const std::map<std::string, std::string> CITY_NAME_TO_3D_RESOURCE_ID_MAP 
     {"連江縣", "F-D0047-081"}, {"金門縣", "F-D0047-085"},
 };
 
-static const std::map<std::string, std::string> CITY_NAME_TO_7D_RESOURCE_ID_MAP = {
+static constexpr size_t CITY_NAME_TO_3D_RESOURCE_ID_MAP_SIZE = 
+    sizeof(CITY_NAME_TO_3D_RESOURCE_ID_MAP) / sizeof(CITY_NAME_TO_3D_RESOURCE_ID_MAP[0]);
+
+static constexpr CityResourcePair CITY_NAME_TO_7D_RESOURCE_ID_MAP[] = {
     {"宜蘭縣", "F-D0047-003"}, {"桃園市", "F-D0047-007"}, {"新竹縣", "F-D0047-011"}, {"苗栗縣", "F-D0047-015"}, {"彰化縣", "F-D0047-019"},
     {"南投縣", "F-D0047-023"}, {"雲林縣", "F-D0047-027"}, {"嘉義縣", "F-D0047-031"}, {"屏東縣", "F-D0047-035"}, {"臺東縣", "F-D0047-039"},
     {"花蓮縣", "F-D0047-043"}, {"澎湖縣", "F-D0047-047"}, {"基隆市", "F-D0047-051"}, {"新竹市", "F-D0047-055"}, {"嘉義市", "F-D0047-059"},
     {"臺北市", "F-D0047-063"}, {"高雄市", "F-D0047-067"}, {"新北市", "F-D0047-071"}, {"臺中市", "F-D0047-075"}, {"臺南市", "F-D0047-079"},
     {"連江縣", "F-D0047-083"}, {"金門縣", "F-D0047-087"},
 };
+
+static constexpr size_t CITY_NAME_TO_7D_RESOURCE_ID_MAP_SIZE = 
+    sizeof(CITY_NAME_TO_7D_RESOURCE_ID_MAP) / sizeof(CITY_NAME_TO_7D_RESOURCE_ID_MAP[0]);
+
+inline const char* find_city_resource_id(const std::string& city_name, bool is_7_days) {
+  if (is_7_days) {
+    for (size_t i = 0; i < CITY_NAME_TO_7D_RESOURCE_ID_MAP_SIZE; ++i) {
+      if (city_name == CITY_NAME_TO_7D_RESOURCE_ID_MAP[i].city) {
+        return CITY_NAME_TO_7D_RESOURCE_ID_MAP[i].resource_id;
+      }
+    }
+  } else {
+    for (size_t i = 0; i < CITY_NAME_TO_3D_RESOURCE_ID_MAP_SIZE; ++i) {
+      if (city_name == CITY_NAME_TO_3D_RESOURCE_ID_MAP[i].city) {
+        return CITY_NAME_TO_3D_RESOURCE_ID_MAP[i].resource_id;
+      }
+    }
+  }
+  return "";
+}
 
 static inline std::tm mktm(int year, int month, int day, int hour, int minute, int second) {
   std::tm tm{};
@@ -577,6 +677,229 @@ struct Record {
   }
 };
 
+// Buffered stream class that pre-reads data into internal buffer
+class BufferedStream : public Stream {
+ public:
+  static constexpr size_t MIN_BUFFER_SIZE = 64;
+  static constexpr size_t MAX_BUFFER_SIZE = 4096;
+  static constexpr size_t DEFAULT_BUFFER_SIZE = 512;
+  
+  BufferedStream(Stream& stream, size_t bufferSize = DEFAULT_BUFFER_SIZE) 
+    : stream_(stream), bytes_read_(0), buffer_pos_(0), buffer_len_(0) {
+    
+    // Validate and clamp buffer size
+    if (bufferSize < MIN_BUFFER_SIZE) {
+      ESP_LOGW(TAG, "Buffer size %zu too small, using minimum %zu", bufferSize, MIN_BUFFER_SIZE);
+      bufferSize = MIN_BUFFER_SIZE;
+    } else if (bufferSize > MAX_BUFFER_SIZE) {
+      ESP_LOGW(TAG, "Buffer size %zu too large, using maximum %zu", bufferSize, MAX_BUFFER_SIZE);
+      bufferSize = MAX_BUFFER_SIZE;
+    }
+    
+    buffer_.reserve(bufferSize);
+    buffer_.resize(bufferSize);
+    if (buffer_.size() != bufferSize) {
+      ESP_LOGE(TAG, "Failed to allocate buffer for BufferedStream (requested: %zu, got: %zu)", 
+               bufferSize, buffer_.size());
+      buffer_.clear();
+    } else {
+      ESP_LOGD(TAG, "BufferedStream created with buffer size: %zu", buffer_.size());
+    }
+  }
+  
+  // Explicitly delete copy operations to prevent issues
+  BufferedStream(const BufferedStream&) = delete;
+  BufferedStream& operator=(const BufferedStream&) = delete;
+  
+  // Allow move operations
+  BufferedStream(BufferedStream&&) = default;
+  BufferedStream& operator=(BufferedStream&&) = default;
+  
+  ~BufferedStream() = default;
+  
+  // Simple health check based on buffer availability
+  bool isHealthy() const { return !buffer_.empty(); }
+  
+  int available() override {
+    // Return buffered data + underlying stream data
+    return (buffer_len_ - buffer_pos_) + stream_.available();
+  }
+  
+  int read() override {
+    // If no buffer allocated, delegate to underlying stream
+    if (buffer_.empty()) {
+      int byte = stream_.read();
+      if (byte != -1) {
+        bytes_read_++;
+      }
+      return byte;
+    }
+    
+    // If buffer is empty, try to fill it
+    if (buffer_pos_ >= buffer_len_) {
+      if (!fillBuffer()) {
+        // Fall back to direct stream reading
+        int byte = stream_.read();
+        if (byte != -1) {
+          bytes_read_++;
+        }
+        return byte;
+      }
+    }
+    
+    // Return from buffer if available
+    if (buffer_pos_ < buffer_len_) {
+      int byte = buffer_[buffer_pos_++];
+      bytes_read_++;
+      
+      // Only log on significant milestones or special debug mode
+      #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
+      if (bytes_read_ % 500 == 0 || (byte == '{' && bytes_read_ < 50) || 
+          (byte == '}' && bytes_read_ > 100)) {
+        ESP_LOGVV(TAG, "Read byte %d: 0x%02X ('%c') at position %zu", 
+                  byte, byte, (byte >= 32 && byte <= 126) ? (char)byte : '.', bytes_read_);
+      }
+      #endif
+      
+      return byte;
+    }
+    
+    return -1; // No data available
+  }
+  
+  int peek() override {
+    // If buffer is empty, try to fill it
+    if (buffer_pos_ >= buffer_len_) {
+      fillBuffer();
+    }
+    
+    // Return from buffer if available
+    if (buffer_pos_ < buffer_len_) {
+      return buffer_[buffer_pos_];
+    }
+    
+    return -1; // No data available
+  }
+  
+  void flush() override { stream_.flush(); }
+  size_t write(uint8_t byte) override { return stream_.write(byte); }
+  
+  // Delegate other important methods (bypass buffer for these operations)
+  void setTimeout(unsigned long timeout) { stream_.setTimeout(timeout); }
+  bool find(char* target) { 
+    ESP_LOGV(TAG, "find() bypassing buffer, delegating to underlying stream");
+    return stream_.find(target); 
+  }
+  bool findUntil(char* target, char* terminator) { 
+    ESP_LOGV(TAG, "findUntil() bypassing buffer, delegating to underlying stream");
+    return stream_.findUntil(target, terminator); 
+  }
+  
+  String readStringUntil(char terminator) {
+    String result;
+    result.reserve(128); // Pre-allocate reasonable capacity
+    
+    int c;
+    while ((c = read()) != -1) {
+      if (c == terminator) break;
+      result += (char)c;
+      
+      // Prevent runaway strings
+      if (result.length() > 1024) {
+        ESP_LOGW(TAG, "readStringUntil('%c') exceeded 1024 chars, truncating", terminator);
+        break;
+      }
+    }
+    
+    ESP_LOGV(TAG, "readStringUntil('%c') returned: %s (length: %d)", 
+             terminator, result.c_str(), result.length());
+    return result;
+  }
+  
+  size_t getBytesRead() const { return bytes_read_; }
+  size_t getBufferSize() const { return buffer_.size(); }
+  size_t getBufferedBytes() const { return buffer_len_ - buffer_pos_; }
+  
+  // Additional monitoring methods
+  float getBufferUtilization() const { 
+    return buffer_.empty() ? 0.0f : (float)buffer_len_ / (float)buffer_.size(); 
+  }
+  
+  bool hasBufferedData() const { return buffer_pos_ < buffer_len_; }
+  
+  // Debug information
+  void logBufferStats() const {
+    ESP_LOGD(TAG, "Buffer stats: size=%zu, pos=%zu, len=%zu, utilization=%.1f%%, healthy=%s", 
+             buffer_.size(), buffer_pos_, buffer_len_, 
+             getBufferUtilization() * 100.0f, isHealthy() ? "true" : "false");
+  }
+  
+  // Drain remaining buffered data to avoid SSL connection state issues
+  void drainBuffer() {
+    size_t remaining = buffer_len_ - buffer_pos_;
+    if (remaining > 0) {
+      ESP_LOGD(TAG, "Draining %d remaining bytes from buffer", remaining);
+      buffer_pos_ = buffer_len_; // Mark buffer as empty
+    }
+    
+    // Also drain any remaining data from underlying stream
+    static constexpr int DRAIN_LIMIT = 200;
+    int drained = 0;
+    while (stream_.available() && drained < DRAIN_LIMIT) {
+      int byte = stream_.read();
+      if (byte == -1) break;
+      drained++;
+    }
+    if (drained > 0) {
+      ESP_LOGD(TAG, "Drained %d bytes from underlying stream", drained);
+    }
+  }
+  
+ private:
+  bool fillBuffer() {
+    if (buffer_.empty()) {
+      // No buffer available, can't fill
+      return false;
+    }
+    
+    buffer_pos_ = 0;
+    buffer_len_ = 0;
+    
+    // Read data into buffer, but don't over-read to avoid SSL state issues
+    size_t available = stream_.available();
+    if (available == 0) {
+      return false; // No data to read
+    }
+    
+    // More efficient reading - read in chunks when possible
+    size_t read_limit = std::min(buffer_.size(), available);
+    
+    // Try to read data efficiently
+    size_t bytes_to_read = std::min(read_limit, buffer_.size());
+    
+    for (size_t i = 0; i < bytes_to_read; i++) {
+      int byte = stream_.read();
+      if (byte == -1) break;
+      buffer_[buffer_len_++] = static_cast<uint8_t>(byte);
+    }
+    
+    if (buffer_len_ > 0) {
+      #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
+      ESP_LOGVV(TAG, "Filled buffer with %zu bytes (available: %zu)", buffer_len_, available);
+      #endif
+      return true;
+    }
+    
+    return false;
+  }
+  
+  Stream& stream_;
+  size_t bytes_read_;
+  std::vector<uint8_t> buffer_;
+  size_t buffer_pos_;  // Current position in buffer
+  size_t buffer_len_;  // Amount of data in buffer
+};
+
 class CWATownForecast : public PollingComponent {
  public:
   float get_setup_priority() const override;
@@ -687,6 +1010,18 @@ class CWATownForecast : public PollingComponent {
   Trigger<> *get_on_error_trigger() { return &this->on_error_trigger_; }
 
  protected:
+  // Memory management helper methods
+  MinimalCheckpoint create_minimal_checkpoint(const Record& record);
+  void restore_from_checkpoint(Record& record, const MinimalCheckpoint& checkpoint);
+  bool parse_to_record(Stream &stream, Record& record, uint64_t &hash_code);
+  
+  // Advanced memory management methods
+  bool process_response_with_adaptive_strategy(Stream &stream, uint64_t &hash_code);
+  bool process_with_psram_dual_buffer(Stream &stream, Record& record, uint64_t &hash_code);
+  bool process_with_internal_checkpoint(Stream &stream, Record& record, uint64_t &hash_code);
+  bool process_with_adaptive_fragment(Stream &stream, Record& record, uint64_t &hash_code);
+  bool process_with_stream_minimal(Stream &stream, Record& record, uint64_t &hash_code);
+  
   TemplatableValue<std::string> api_key_;
   TemplatableValue<std::string> city_name_;
   TemplatableValue<std::string> town_name_;

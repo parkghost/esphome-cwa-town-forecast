@@ -24,7 +24,20 @@ namespace cwa_town_forecast {
 float CWATownForecast::get_setup_priority() const { return setup_priority::LATE; }
 
 // Initializes the component.
-void CWATownForecast::setup() {}
+void CWATownForecast::setup() {
+  if (psramFound()) {
+    ESP_LOGI(TAG, "PSRAM detected (%d bytes), using extended memory allocation", ESP.getPsramSize());
+    this->record_.weather_elements.reserve(32);
+    ESP_LOGV(TAG, "Using extended buffers for PSRAM");
+  } else {
+    ESP_LOGI(TAG, "No PSRAM detected, using conservative memory allocation");
+    this->record_.weather_elements.reserve(16);
+    
+    if (this->early_data_clear_.value() == EarlyDataClear::AUTO) {
+      ESP_LOGV(TAG, "Auto-enabled early data clear for memory conservation");
+    }
+  }
+}
 
 // Periodically called to update forecast data.
 void CWATownForecast::update() {
@@ -183,17 +196,14 @@ bool CWATownForecast::send_request_() {
 
   // Get the appropriate resource ID based on forecast mode
   Mode mode = mode_;
-  std::string resource_id;
-  const auto &mapping = (mode == Mode::THREE_DAYS ? CITY_NAME_TO_3D_RESOURCE_ID_MAP : CITY_NAME_TO_7D_RESOURCE_ID_MAP);
-  auto it = mapping.find(city_name);
-  if (it == mapping.end()) {
+  const char* resource_id = find_city_resource_id(city_name, mode == Mode::SEVEN_DAYS);
+  if (!resource_id || strlen(resource_id) == 0) {
     ESP_LOGE(TAG, "Invalid city name: %s", city_name.c_str());
     return false;
   }
-  resource_id = it->second;
 
   ESP_LOGD(TAG, "City name: %s, Town name: %s, Mode: %s", city_name.c_str(), town_name_.value().c_str(), mode_to_string(mode).c_str());
-  ESP_LOGD(TAG, "Resource ID: %s", resource_id.c_str());
+  ESP_LOGD(TAG, "Resource ID: %s", resource_id);
   String encoded_town_name = urlEncode(town_name_.value().c_str());
   std::string element_param;
   if (!this->weather_elements_.empty()) {
@@ -225,7 +235,7 @@ bool CWATownForecast::send_request_() {
       ESP_LOGW(TAG, "Ignoring timeTo parameter, RTC not set");
     }
   }
-  std::string url = "https://opendata.cwa.gov.tw/api/v1/rest/datastore/" + resource_id + "?Authorization=" + api_key_.value() +
+  std::string url = "https://opendata.cwa.gov.tw/api/v1/rest/datastore/" + std::string(resource_id) + "?Authorization=" + api_key_.value() +
                     "&format=JSON&LocationName=" + std::string(encoded_town_name.c_str()) + element_param + time_to_param;
 
   HTTPClient http;
@@ -239,27 +249,45 @@ bool CWATownForecast::send_request_() {
   App.feed_wdt();
   int http_code = http.GET();
   ESP_LOGD(TAG, "After request: free heap:%u, max block:%u", ESP.getFreeHeap(), heap_caps_get_largest_free_block(MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL));
+  
+  // Use RAII pattern to ensure HTTP connection is always closed
+  bool request_success = false;
+  uint64_t hash_code = 0;
+  
   if (http_code == HTTP_CODE_OK) {
     App.feed_wdt();
-    uint64_t hash_code = 0;
-    bool result = this->process_response_(http.getStream(), hash_code);
-    http.end();
-    ESP_LOGD(TAG, "After json parse: free heap:%u, max block:%u", ESP.getFreeHeap(), heap_caps_get_largest_free_block(MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL));
-
-    if (result) {
-      if (this->check_changes(hash_code)) {
-        ESP_LOGD(TAG, "Triggering on_data_change");
-        this->on_data_change_trigger_.trigger(this->record_);
-      } else {
-        ESP_LOGD(TAG, "No data change detected");
-      }
-      return true;
-    } else {
-      ESP_LOGE(TAG, "Failed to parse JSON response");
-      return false;
-    }
+    
+    // Get stream and set timeout for read operations
+    auto& stream = http.getStream();
+    
+    // Wrap stream with our buffered wrapper for IncompleteInput debugging
+    BufferedStream bufferedStream(stream, 1024); // 1KB buffer
+    ESP_LOGD(TAG, "Using BufferedStream (1KB buffer) to improve JSON parsing reliability and monitor stream reading");
+    
+    request_success = this->process_response_(bufferedStream, hash_code);
+    
+    ESP_LOGD(TAG, "Total bytes read from stream: %d", bufferedStream.getBytesRead());
+    
+    // Drain any remaining buffered data to avoid SSL state issues
+    bufferedStream.drainBuffer();
   } else {
-    ESP_LOGE(TAG, "HTTP request failed, code: %d", http_code);
+    ESP_LOGE(TAG, "HTTP request failed with code: %d", http_code);
+  }
+
+  // Always end HTTP connection, regardless of success or failure
+  http.end();
+  ESP_LOGD(TAG, "After json parse: free heap:%u, max block:%u", ESP.getFreeHeap(), heap_caps_get_largest_free_block(MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL));
+
+  if (request_success) {
+    if (this->check_changes(hash_code)) {
+      ESP_LOGD(TAG, "Triggering on_data_change");
+      this->on_data_change_trigger_.trigger(this->record_);
+    } else {
+      ESP_LOGD(TAG, "No data change detected");
+    }
+    return true;
+  } else {
+    ESP_LOGE(TAG, "Failed to parse JSON response");
     return false;
   }
 }
@@ -285,10 +313,34 @@ static bool parse_iso8601(const std::string &s, std::tm &tm) {
   return true;
 }
 
-// Processes the HTTP response and parses forecast data.
-bool CWATownForecast::process_response_(Stream &stream, uint64_t &hash_code) {
-  Record temp_record;
+// Memory management helper methods
+MinimalCheckpoint CWATownForecast::create_minimal_checkpoint(const Record& record) {
+  MinimalCheckpoint checkpoint;
+  checkpoint.locations_name = record.locations_name;
+  checkpoint.location_name = record.location_name;
+  checkpoint.latitude = record.latitude;
+  checkpoint.longitude = record.longitude;
+  checkpoint.mode = record.mode;
+  checkpoint.element_count = record.weather_elements.size();
+  checkpoint.valid = true;
+  return checkpoint;
+}
 
+void CWATownForecast::restore_from_checkpoint(Record& record, const MinimalCheckpoint& checkpoint) {
+  if (checkpoint.valid) {
+    record.locations_name = checkpoint.locations_name;
+    record.location_name = checkpoint.location_name;
+    record.latitude = checkpoint.latitude;
+    record.longitude = checkpoint.longitude;
+    record.mode = checkpoint.mode;
+    record.weather_elements.clear();
+    if (checkpoint.element_count > 0) {
+      record.weather_elements.reserve(checkpoint.element_count);
+    }
+  }
+}
+
+bool CWATownForecast::parse_to_record(Stream &stream, Record& record, uint64_t &hash_code) {
   if (!stream.find("\"success\":")) {
     ESP_LOGE(TAG, "Could not find success field");
     return false;
@@ -298,19 +350,21 @@ bool CWATownForecast::process_response_(Stream &stream, uint64_t &hash_code) {
     ESP_LOGE(TAG, "API response 'success' is not true: %s", success_val.c_str());
     return false;
   }
-  temp_record.mode = this->mode_;
-  temp_record.weather_elements.reserve(this->mode_ == Mode::THREE_DAYS ? WEATHER_ELEMENT_NAMES_3DAYS.size() : WEATHER_ELEMENT_NAMES_7DAYS.size());
+  
+  record.mode = this->mode_;
+  record.weather_elements.reserve(this->mode_ == Mode::THREE_DAYS ? WEATHER_ELEMENT_NAMES_3DAYS.size() : WEATHER_ELEMENT_NAMES_7DAYS.size());
+  
   if (!stream.find("\"LocationsName\":\"")) {
     ESP_LOGE(TAG, "Could not find LocationsName");
     return false;
   }
-  temp_record.locations_name = stream.readStringUntil('"').c_str();
+  record.locations_name = stream.readStringUntil('"').c_str();
 
   if (!stream.find("\"LocationName\":\"")) {
     ESP_LOGE(TAG, "Could not find LocationName");
     return false;
   }
-  temp_record.location_name = stream.readStringUntil('"').c_str();
+  record.location_name = stream.readStringUntil('"').c_str();
 
   if (!stream.find("\"Latitude\":\"")) {
     ESP_LOGE(TAG, "Could not find Latitude");
@@ -322,9 +376,9 @@ bool CWATownForecast::process_response_(Stream &stream, uint64_t &hash_code) {
   double lat_val = std::strtod(lat_cstr, &lat_end);
   if (lat_cstr == lat_end || *lat_end != '\0') {
     ESP_LOGW(TAG, "Invalid latitude value: %s", lat_cstr);
-    temp_record.latitude = NAN;
+    record.latitude = NAN;
   } else {
-    temp_record.latitude = lat_val;
+    record.latitude = lat_val;
   }
 
   if (!stream.find("\"Longitude\":\"")) {
@@ -337,9 +391,9 @@ bool CWATownForecast::process_response_(Stream &stream, uint64_t &hash_code) {
   double lon_val = std::strtod(lon_cstr, &lon_end);
   if (lon_cstr == lon_end || *lon_end != '\0') {
     ESP_LOGW(TAG, "Invalid longitude value: %s", lon_cstr);
-    temp_record.longitude = NAN;
+    record.longitude = NAN;
   } else {
-    temp_record.longitude = lon_val;
+    record.longitude = lon_val;
   }
 
   if (!stream.find("\"WeatherElement\":[")) {
@@ -349,9 +403,9 @@ bool CWATownForecast::process_response_(Stream &stream, uint64_t &hash_code) {
 
   ESPTime now = this->rtc_->now();
   SunSet sun;
-  double timezone_offset = static_cast<double>(now.timezone_offset()) / 60 / 60;
-  sun.setPosition(temp_record.latitude, temp_record.longitude, timezone_offset);
-  ESP_LOGD(TAG, "Sunset Latitude: %f, Longitude: %f, Offset: %d", temp_record.latitude, temp_record.longitude, timezone_offset);
+  double timezone_offset = static_cast<double>(now.timezone_offset()) / 3600;
+  sun.setPosition(record.latitude, record.longitude, timezone_offset);
+  ESP_LOGD(TAG, "Sunset Latitude: %f, Longitude: %f, Offset: %d", record.latitude, record.longitude, timezone_offset);
 
   ArduinoJson::JsonDocument time_obj;
   do {
@@ -367,6 +421,8 @@ bool CWATownForecast::process_response_(Stream &stream, uint64_t &hash_code) {
       return false;
     }
 
+    ESP_LOGV(TAG, "Processing Weather Element: %s", we.element_name.c_str());
+
     // check for empty array
     int next = stream.peek();
     if (next == ']') {
@@ -376,13 +432,33 @@ bool CWATownForecast::process_response_(Stream &stream, uint64_t &hash_code) {
     }
 
     do {
+      time_obj.clear();      
+      ESP_LOGV(TAG, "Parsing JSON with %d bytes available", stream.available());
+      
+      // The ReadLoggingStream will output the stream content to Serial for debugging
       DeserializationError err = deserializeJson(time_obj, stream);
       if (err) {
         ESP_LOGE(TAG, "JSON parsing failed: %s", err.c_str());
-        return false;
+        ESP_LOGE(TAG, "Stream available bytes before error: %d", stream.available());
+        
+        if (err == DeserializationError::IncompleteInput) {
+          ESP_LOGE(TAG, "IncompleteInput detected - JSON document was truncated");
+          ESP_LOGE(TAG, "Current memory state - free heap: %u, max block: %u", 
+                   ESP.getFreeHeap(), heap_caps_get_largest_free_block(MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL));
+          
+          // For IncompleteInput, we should abort the entire parsing process
+          // rather than try to recover, as the data integrity is compromised
+          ESP_LOGE(TAG, "Aborting parse due to incomplete JSON data");
+          return false;
+        } else {
+          ESP_LOGE(TAG, "JSON parsing failed with error: %s", err.c_str());
+          return false;
+        }
       }
 
       Time ts;
+      ts.element_values.reserve(3);
+      
       if (time_obj["DataTime"].is<std::string>()) {
         std::string tmp = time_obj["DataTime"].as<std::string>();
         ts.data_time = std::unique_ptr<std::tm>(new std::tm());
@@ -409,8 +485,8 @@ bool CWATownForecast::process_response_(Stream &stream, uint64_t &hash_code) {
       }
 
       // Process element values
-      for (JsonObject val_obj : time_obj["ElementValue"].as<JsonArray>()) {
-        for (JsonPair kv : val_obj) {
+      for (ArduinoJson::JsonObject val_obj : time_obj["ElementValue"].as<ArduinoJson::JsonArray>()) {
+        for (ArduinoJson::JsonPair kv : val_obj) {
           ElementValueKey evk;
           if (parse_element_value_key(kv.key().c_str(), evk)) {
             auto value = kv.value().as<std::string>();
@@ -423,9 +499,9 @@ bool CWATownForecast::process_response_(Stream &stream, uint64_t &hash_code) {
 
             // Special handling for weather codes to generate weather icons
             if (we.element_name == WEATHER_ELEMENT_NAME_WEATHER && evk == ElementValueKey::WEATHER_CODE) {
-              auto it_icon = WEATHER_CODE_TO_WEATHER_ICON_NAME_MAP.find(value);
-              if (it_icon != WEATHER_CODE_TO_WEATHER_ICON_NAME_MAP.end()) {
-                std::string icon = it_icon->second;
+              const char* icon_name = find_weather_icon(value);
+              if (icon_name && strlen(icon_name) > 0) {
+                std::string icon = icon_name;
 
                 // Adjust icon based on time of day
                 std::tm t = ts.to_tm();
@@ -458,14 +534,14 @@ bool CWATownForecast::process_response_(Stream &stream, uint64_t &hash_code) {
         we.times.push_back(std::move(ts));
       }
     } while (stream.findUntil(",", "]"));
-    temp_record.weather_elements.push_back(std::move(we));
+    record.weather_elements.push_back(std::move(we));
   } while (stream.findUntil(",", "]"));
 
   // Determine start and end time for the entire record
   bool first_time = true;
   std::tm min_tm{};
   std::tm max_tm{};
-  for (const auto &we : temp_record.weather_elements) {
+  for (const auto &we : record.weather_elements) {
     for (const auto &t : we.times) {
       std::tm candidate_tm{};
       if (t.data_time) {
@@ -495,13 +571,13 @@ bool CWATownForecast::process_response_(Stream &stream, uint64_t &hash_code) {
     }
   }
   if (!first_time) {
-    temp_record.start_time = min_tm;
-    temp_record.end_time = max_tm;
+    record.start_time = min_tm;
+    record.end_time = max_tm;
   }
 
   // Set the updated time to current time
   if (now.is_valid()) {
-    temp_record.updated_time = now.to_c_tm();
+    record.updated_time = now.to_c_tm();
   }
 
   // Calculate hash code for change detection
@@ -512,9 +588,9 @@ bool CWATownForecast::process_response_(Stream &stream, uint64_t &hash_code) {
     uint64_t h = hasher(s);
     new_hash ^= h + salt + (new_hash << 6) + (new_hash >> 2);
   };
-  combine(temp_record.locations_name);
-  combine(temp_record.location_name);
-  for (const auto &we : temp_record.weather_elements) {
+  combine(record.locations_name);
+  combine(record.location_name);
+  for (const auto &we : record.weather_elements) {
     combine(we.element_name);
     for (const auto &ts : we.times) {
       if (ts.data_time) {
@@ -532,21 +608,181 @@ bool CWATownForecast::process_response_(Stream &stream, uint64_t &hash_code) {
       }
     }
   }
-
-  // Swap the temporary record with the main record
-  this->record_.mode = temp_record.mode;
-  this->record_.locations_name = temp_record.locations_name;
-  this->record_.location_name = temp_record.location_name;
-  this->record_.latitude = temp_record.latitude;
-  this->record_.longitude = temp_record.longitude;
-  this->record_.start_time = temp_record.start_time;
-  this->record_.end_time = temp_record.end_time;
-  this->record_.updated_time = temp_record.updated_time;
-  this->record_.weather_elements.clear();
-  for (auto &&element : temp_record.weather_elements) {
-    this->record_.weather_elements.push_back(std::move(element));
-  }
+  
   hash_code = new_hash;
+  return true;
+}
+
+// Processes the HTTP response and parses forecast data.
+bool CWATownForecast::process_response_(Stream &stream, uint64_t &hash_code) {
+  // Use adaptive memory management strategy
+  return process_response_with_adaptive_strategy(stream, hash_code);
+}
+
+// AdaptiveMemoryManager Implementation
+MemoryStats AdaptiveMemoryManager::get_current_stats() {
+  MemoryStats stats;
+  stats.free_heap = ESP.getFreeHeap();
+  stats.max_block = ESP.getMaxAllocHeap();
+  stats.total_heap = ESP.getHeapSize();
+  stats.has_psram = psramFound();
+  
+  if (stats.has_psram) {
+    stats.psram_free = ESP.getFreePsram();
+    stats.psram_total = ESP.getPsramSize();
+  }
+  
+  // Calculate fragmentation ratio
+  if (stats.free_heap > 0) {
+    stats.fragmentation_ratio = 1.0f - (static_cast<float>(stats.max_block) / static_cast<float>(stats.free_heap));
+  }
+  
+  return stats;
+}
+
+MemoryStrategy AdaptiveMemoryManager::select_optimal_strategy(const MemoryStats& stats) {
+  // Strategy 1: PSRAM available - use dual buffer
+  if (stats.has_psram && stats.psram_free > 50000) {
+    return MemoryStrategy::PSRAM_DUAL_BUFFER;
+  }
+  
+  // Strategy 2: Sufficient internal memory - use checkpoint
+  if (is_memory_sufficient_for_temp_record(stats)) {
+    return MemoryStrategy::INTERNAL_CHECKPOINT;
+  }
+  
+  // Strategy 3: High fragmentation - use adaptive approach
+  if (stats.fragmentation_ratio > MAX_FRAGMENTATION_RATIO) {
+    return MemoryStrategy::ADAPTIVE_FRAGMENT;
+  }
+  
+  // Strategy 4: Low memory fallback - minimal streaming
+  return MemoryStrategy::STREAM_MINIMAL;
+}
+
+void AdaptiveMemoryManager::log_memory_decision(MemoryStrategy strategy, const MemoryStats& stats) {
+  const char* strategy_names[] = {"PSRAM_DUAL_BUFFER", "INTERNAL_CHECKPOINT", "ADAPTIVE_FRAGMENT", "STREAM_MINIMAL"};
+  ESP_LOGD(TAG, "Memory strategy: %s", strategy_names[static_cast<int>(strategy)]);
+  ESP_LOGD(TAG, "  Free heap: %d bytes, Max block: %d bytes, Fragmentation: %.2f%%", 
+           stats.free_heap, stats.max_block, stats.fragmentation_ratio * 100.0f);
+  if (stats.has_psram) {
+    ESP_LOGD(TAG, "  PSRAM available: %d bytes free / %d bytes total", stats.psram_free, stats.psram_total);
+  }
+}
+
+bool AdaptiveMemoryManager::should_use_psram_allocation(const MemoryStats& stats) {
+  return stats.has_psram && stats.psram_free > 50000;
+}
+
+bool AdaptiveMemoryManager::is_memory_sufficient_for_temp_record(const MemoryStats& stats) {
+  return stats.free_heap > MIN_HEAP_FOR_TEMP_RECORD && stats.max_block > MIN_BLOCK_FOR_TEMP_RECORD;
+}
+
+bool CWATownForecast::process_response_with_adaptive_strategy(Stream &stream, uint64_t &hash_code) {
+  auto stats = AdaptiveMemoryManager::get_current_stats();
+  auto strategy = AdaptiveMemoryManager::select_optimal_strategy(stats);
+  AdaptiveMemoryManager::log_memory_decision(strategy, stats);
+  
+  switch (strategy) {
+    case MemoryStrategy::PSRAM_DUAL_BUFFER:
+      return process_with_psram_dual_buffer(stream, this->record_, hash_code);
+    case MemoryStrategy::INTERNAL_CHECKPOINT:
+      return process_with_internal_checkpoint(stream, this->record_, hash_code);
+    case MemoryStrategy::ADAPTIVE_FRAGMENT:
+      return process_with_adaptive_fragment(stream, this->record_, hash_code);
+    case MemoryStrategy::STREAM_MINIMAL:
+      return process_with_stream_minimal(stream, this->record_, hash_code);
+    default:
+      ESP_LOGE(TAG, "Unknown memory strategy");
+      return false;
+  }
+}
+
+bool CWATownForecast::process_with_psram_dual_buffer(Stream &stream, Record& record, uint64_t &hash_code) {
+  ESP_LOGD(TAG, "Using PSRAM dual buffer strategy");
+  
+  Record* temp_record = (Record*)heap_caps_malloc(sizeof(Record), MALLOC_CAP_SPIRAM);
+  if (!temp_record) {
+    ESP_LOGE(TAG, "Failed to allocate temp_record in PSRAM, falling back to internal RAM");
+    return process_with_internal_checkpoint(stream, record, hash_code);
+  }
+  
+  // Use placement new to construct Record in PSRAM
+  new(temp_record) Record();
+  
+  bool parse_success = parse_to_record(stream, *temp_record, hash_code);
+  if (parse_success) {
+    record = std::move(*temp_record);
+  }
+  
+  // Clean up regardless of success/failure
+  temp_record->~Record();
+  heap_caps_free(temp_record);
+  
+  if (!parse_success) {
+    return false;
+  }
+  
+  ESP_LOGD(TAG, "PSRAM dual buffer strategy completed successfully");
+  return true;
+}
+
+bool CWATownForecast::process_with_internal_checkpoint(Stream &stream, Record& record, uint64_t &hash_code) {
+  ESP_LOGD(TAG, "Using internal RAM checkpoint strategy");
+  
+  auto checkpoint = create_minimal_checkpoint(record);
+  record.weather_elements.clear();
+  
+  if (!parse_to_record(stream, record, hash_code)) {
+    ESP_LOGW(TAG, "Parse failed, restoring from checkpoint");
+    restore_from_checkpoint(record, checkpoint);
+    return false;
+  }
+  
+  ESP_LOGD(TAG, "Internal RAM checkpoint strategy completed successfully");
+  return true;
+}
+
+bool CWATownForecast::process_with_adaptive_fragment(Stream &stream, Record& record, uint64_t &hash_code) {
+  ESP_LOGD(TAG, "Using adaptive fragmentation strategy");
+  
+  // Try PSRAM first if available
+  auto stats = AdaptiveMemoryManager::get_current_stats();
+  if (stats.has_psram && stats.psram_free > 30000) {
+    ESP_LOGD(TAG, "Adaptive strategy: Using PSRAM");
+    return process_with_psram_dual_buffer(stream, record, hash_code);
+  }
+  
+  // Check if we have enough contiguous memory for temp record
+  if (stats.max_block > 25000) {
+    ESP_LOGD(TAG, "Adaptive strategy: Using temp record approach");
+    Record temp_record;
+    if (!parse_to_record(stream, temp_record, hash_code)) {
+      return false;
+    }
+    record = std::move(temp_record);
+    ESP_LOGD(TAG, "Adaptive fragmentation strategy completed successfully");
+    return true;
+  }
+  
+  // Fall back to checkpoint strategy
+  ESP_LOGD(TAG, "Adaptive strategy: Falling back to checkpoint");
+  return process_with_internal_checkpoint(stream, record, hash_code);
+}
+
+bool CWATownForecast::process_with_stream_minimal(Stream &stream, Record& record, uint64_t &hash_code) {
+  ESP_LOGD(TAG, "Using stream minimal strategy");
+  
+  // Clear old data to free memory
+  record.weather_elements.clear();
+  
+  // Use minimal memory parsing directly into record
+  if (!parse_to_record(stream, record, hash_code)) {
+    ESP_LOGW(TAG, "Stream minimal parse failed");
+    return false;
+  }
+  
+  ESP_LOGD(TAG, "Stream minimal strategy completed successfully");
   return true;
 }
 
