@@ -49,6 +49,8 @@ CONF_ON_ERROR = "on_error"
 CONF_WATCHDOG_TIMEOUT = "watchdog_timeout"
 CONF_HTTP_CONNECT_TIMEOUT = "http_connect_timeout"
 CONF_HTTP_TIMEOUT = "http_timeout"
+CONF_RETRY_COUNT = "retry_count"
+CONF_RETRY_DELAY = "retry_delay"
 
 CHILD_SCHEMA = cv.Schema(
     {
@@ -184,6 +186,15 @@ CONFIG_SCHEMA = cv.All(
                         cv.positive_time_period_milliseconds,
                     )
                 ),
+                cv.Optional(CONF_RETRY_COUNT, default=1): cv.templatable(
+                    cv.All(cv.int_range(min=0, max=5))
+                ),
+                cv.Optional(CONF_RETRY_DELAY, default="1s"): cv.templatable(
+                    cv.All(
+                        cv.positive_not_null_time_period,
+                        cv.positive_time_period_milliseconds,
+                    )
+                ),
             }
         )
         .add_extra(validate_mode_weather_elements)
@@ -262,6 +273,12 @@ async def to_code(configs):
         if CONF_HTTP_TIMEOUT in config:
             timeout = await cg.templatable(config[CONF_HTTP_TIMEOUT], [], cg.uint32)
             cg.add(var.set_http_timeout(timeout))
+        if CONF_RETRY_COUNT in config:
+            retry_count = await cg.templatable(config[CONF_RETRY_COUNT], [], cg.uint32)
+            cg.add(var.set_retry_count(retry_count))
+        if CONF_RETRY_DELAY in config:
+            retry_delay = await cg.templatable(config[CONF_RETRY_DELAY], [], cg.uint32)
+            cg.add(var.set_retry_delay(retry_delay))
 
     cg.add_library("NetworkClientSecure", None)
     cg.add_library("HTTPClient", None)

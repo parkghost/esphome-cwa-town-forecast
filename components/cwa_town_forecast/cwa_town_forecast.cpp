@@ -48,7 +48,7 @@ void CWATownForecast::update() {
 
   auto now = this->rtc_->now();
   std::tm tm = now.to_c_tm();
-  if (send_request_()) {
+  if (send_request_with_retry_()) {
     this->status_clear_warning();
 
     if (this->last_success_) {
@@ -114,6 +114,8 @@ void CWATownForecast::dump_config() {
   ESP_LOGCONFIG(TAG, "  Watchdog Timeout: %u ms", watchdog_timeout_.value());
   ESP_LOGCONFIG(TAG, "  HTTP Connect Timeout: %u ms", http_connect_timeout_.value());
   ESP_LOGCONFIG(TAG, "  HTTP Timeout: %u ms", http_timeout_.value());
+  ESP_LOGCONFIG(TAG, "  Retry Count: %u", retry_count_.value());
+  ESP_LOGCONFIG(TAG, "  Retry Delay: %u ms", retry_delay_.value());
   ESP_LOGCONFIG(TAG, "  PSRAM Available: %s", psram_available ? "true" : "false");
   LOG_UPDATE_INTERVAL(this);
 }
@@ -158,6 +160,58 @@ bool CWATownForecast::validate_config_() {
     valid = false;
   }
   return valid;
+}
+
+// Sends HTTP request with retry mechanism.
+bool CWATownForecast::send_request_with_retry_() {
+  uint32_t retry_count = retry_count_.value();
+  uint32_t retry_delay = retry_delay_.value();
+  
+  // If retry count is 0, just make one attempt
+  if (retry_count == 0) {
+    return send_request_();
+  }
+  
+  for (uint32_t attempt = 0; attempt <= retry_count; ++attempt) {
+    if (attempt > 0) {
+      ESP_LOGW(TAG, "Retrying request (attempt %u/%u)", attempt + 1, retry_count + 1);
+      
+      // Calculate exponential backoff with jitter
+      uint32_t backoff_delay = retry_delay * (1 << (attempt - 1)); // Exponential backoff
+      uint32_t jitter = random() % 1000; // Add up to 1 second of jitter
+      uint32_t total_delay = backoff_delay + jitter;
+      
+      // Cap the delay to prevent excessive waiting
+      if (total_delay > 30000) { // Max 30 seconds
+        total_delay = 30000;
+      }
+      
+      ESP_LOGD(TAG, "Backoff delay: %u ms (base: %u ms, jitter: %u ms)", total_delay, backoff_delay, jitter);
+      
+      // Use non-blocking delay to avoid blocking the main loop
+      uint32_t delay_end = millis() + total_delay;
+      while (millis() < delay_end) {
+        App.feed_wdt();
+        delay(100); // Small delay to prevent busy waiting
+      }
+    }
+    
+    ESP_LOGD(TAG, "HTTP request attempt %u/%u", attempt + 1, retry_count + 1);
+    
+    if (send_request_()) {
+      if (attempt > 0) {
+        ESP_LOGI(TAG, "Request succeeded on attempt %u/%u", attempt + 1, retry_count + 1);
+      }
+      return true;
+    }
+    
+    if (attempt < retry_count) {
+      ESP_LOGW(TAG, "Request failed on attempt %u/%u, will retry", attempt + 1, retry_count + 1);
+    }
+  }
+  
+  ESP_LOGE(TAG, "Request failed after %u attempts", retry_count + 1);
+  return false;
 }
 
 // Sends HTTP request to fetch forecast data.
@@ -246,8 +300,21 @@ bool CWATownForecast::send_request_() {
   http.begin(url.c_str());
   ESP_LOGD(TAG, "Sending query: %s", url.c_str());
   ESP_LOGD(TAG, "Before request: free heap:%u, max block:%u", ESP.getFreeHeap(), heap_caps_get_largest_free_block(MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL));
+  
+  // Start timer for overall request timeout protection
+  unsigned long request_start = millis();
+  uint32_t max_request_time = http_connect_timeout_.value() + http_timeout_.value() + 5000; // Add 5s buffer
+  
   App.feed_wdt();
   int http_code = http.GET();
+  
+  // Check if request took too long
+  unsigned long request_duration = millis() - request_start;
+  if (request_duration > max_request_time) {
+    ESP_LOGW(TAG, "HTTP request took too long: %lu ms (max: %u ms)", request_duration, max_request_time);
+    http.end();
+    return false;
+  }
   ESP_LOGD(TAG, "After request: free heap:%u, max block:%u", ESP.getFreeHeap(), heap_caps_get_largest_free_block(MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL));
   
   // Use RAII pattern to ensure HTTP connection is always closed
@@ -264,9 +331,20 @@ bool CWATownForecast::send_request_() {
     BufferedStream bufferedStream(stream, 1024); // 1KB buffer
     ESP_LOGD(TAG, "Using BufferedStream (1KB buffer) to improve JSON parsing reliability and monitor stream reading");
     
+    // Add timeout protection for response processing
+    unsigned long process_start = millis();
+    uint32_t max_process_time = http_timeout_.value() + 10000; // Add 10s buffer for processing
+    
     request_success = this->process_response_(bufferedStream, hash_code);
     
+    unsigned long process_duration = millis() - process_start;
+    if (process_duration > max_process_time) {
+      ESP_LOGW(TAG, "Response processing took too long: %lu ms (max: %u ms)", process_duration, max_process_time);
+      request_success = false;
+    }
+    
     ESP_LOGD(TAG, "Total bytes read from stream: %d", bufferedStream.getBytesRead());
+    ESP_LOGD(TAG, "Response processing duration: %lu ms", process_duration);
     
     // Drain any remaining buffered data to avoid SSL state issues
     bufferedStream.drainBuffer();

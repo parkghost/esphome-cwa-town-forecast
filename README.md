@@ -85,6 +85,8 @@ This external component for ESPHome fetches [town weather forecast](https://www.
 * **watchdog_timeout** (Optional, Time, templatable): Timeout for the request watchdog. Default `30s`.
 * **http_connect_timeout** (Optional, Time, templatable): HTTP connect timeout. Default `5s`.
 * **http_timeout** (Optional, Time, templatable): HTTP read timeout. Default `10s`.
+* **retry_count** (Optional, integer, templatable): Number of retry attempts for failed HTTP requests. Default `1`. Range: 0-5.
+* **retry_delay** (Optional, Time, templatable): Base delay between retry attempts. Uses exponential backoff with jitter. Default `1s`.
 * **update_interval** (Optional, Time): How often to check for new data. Defaults to `never` (manual updates only).
 
 #### Automations

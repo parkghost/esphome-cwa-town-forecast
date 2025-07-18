@@ -973,6 +973,16 @@ class CWATownForecast : public PollingComponent {
     http_timeout_ = http_timeout;
   }
 
+  template <typename V>
+  void set_retry_count(V retry_count) {
+    retry_count_ = retry_count;
+  }
+
+  template <typename V>
+  void set_retry_delay(V retry_delay) {
+    retry_delay_ = retry_delay;
+  }
+
   void clear_data() { record_.weather_elements.clear(); }
 
   Record &get_data();
@@ -1035,6 +1045,8 @@ class CWATownForecast : public PollingComponent {
   TemplatableValue<uint32_t> watchdog_timeout_;
   TemplatableValue<uint32_t> http_connect_timeout_;
   TemplatableValue<uint32_t> http_timeout_;
+  TemplatableValue<uint32_t> retry_count_;
+  TemplatableValue<uint32_t> retry_delay_;
   time::RealTimeClock *rtc_{nullptr};
 
   text_sensor::TextSensor *city_sensor_{nullptr};
@@ -1077,6 +1089,7 @@ class CWATownForecast : public PollingComponent {
   time_t sensor_expiration_time_{};
 
   bool send_request_();
+  bool send_request_with_retry_();
   bool validate_config_();
   bool process_response_(Stream &stream, uint64_t &hash_code);
   bool check_changes(uint64_t new_hash_code);
