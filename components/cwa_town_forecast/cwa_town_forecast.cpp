@@ -539,27 +539,30 @@ bool CWATownForecast::parse_to_record(Stream &stream, Record& record, uint64_t &
       
       if (time_obj["DataTime"].is<std::string>()) {
         std::string tmp = time_obj["DataTime"].as<std::string>();
-        ts.data_time = std::unique_ptr<std::tm>(new std::tm());
-        if (!parse_iso8601(tmp, *ts.data_time)) {
+        std::tm temp_tm;
+        if (!parse_iso8601(tmp, temp_tm)) {
           ESP_LOGE(TAG, "Could not parse DataTime: %s", tmp.c_str());
           return false;
         }
+        ts.data_time = temp_tm;
       }
       if (time_obj["StartTime"].is<std::string>()) {
         std::string tmp = time_obj["StartTime"].as<std::string>();
-        ts.start_time = std::unique_ptr<std::tm>(new std::tm());
-        if (!parse_iso8601(tmp, *ts.start_time)) {
+        std::tm temp_tm;
+        if (!parse_iso8601(tmp, temp_tm)) {
           ESP_LOGE(TAG, "Could not parse StartTime: %s", tmp.c_str());
           return false;
         }
+        ts.start_time_data = temp_tm;
       }
       if (time_obj["EndTime"].is<std::string>()) {
         std::string tmp = time_obj["EndTime"].as<std::string>();
-        ts.end_time = std::unique_ptr<std::tm>(new std::tm());
-        if (!parse_iso8601(tmp, *ts.end_time)) {
+        std::tm temp_tm;
+        if (!parse_iso8601(tmp, temp_tm)) {
           ESP_LOGE(TAG, "Could not parse EndTime: %s", tmp.c_str());
           return false;
         }
+        ts.end_time_data = temp_tm;
       }
 
       // Process element values
@@ -569,11 +572,11 @@ bool CWATownForecast::parse_to_record(Stream &stream, Record& record, uint64_t &
           if (parse_element_value_key(kv.key().c_str(), evk)) {
             auto value = kv.value().as<std::string>();
             auto it = std::find_if(ts.element_values.begin(), ts.element_values.end(),
-                                   [&](const std::pair<ElementValueKey, std::string> &p) { return p.first == evk; });
+                                   [&](const std::pair<ElementValueKey, AdaptiveString> &p) { return p.first == evk; });
             if (it != ts.element_values.end())
-              it->second = value;
+              it->second = AdaptiveString(value);
             else
-              ts.element_values.emplace_back(evk, value);
+              ts.element_values.emplace_back(evk, AdaptiveString(value));
 
             // Special handling for weather codes to generate weather icons
             if (we.element_name == WEATHER_ELEMENT_NAME_WEATHER && evk == ElementValueKey::WEATHER_CODE) {
@@ -600,9 +603,9 @@ bool CWATownForecast::parse_to_record(Stream &stream, Record& record, uint64_t &
                     icon = "night-partly-cloudy";
                   }
                 }
-                ts.element_values.emplace_back(ElementValueKey::WEATHER_ICON, icon);
+                ts.element_values.emplace_back(ElementValueKey::WEATHER_ICON, AdaptiveString(icon));
               } else {
-                ts.element_values.emplace_back(ElementValueKey::WEATHER_ICON, "");
+                ts.element_values.emplace_back(ElementValueKey::WEATHER_ICON, AdaptiveString(""));
               }
             }
           } else {
@@ -622,10 +625,10 @@ bool CWATownForecast::parse_to_record(Stream &stream, Record& record, uint64_t &
   for (const auto &we : record.weather_elements) {
     for (const auto &t : we.times) {
       std::tm candidate_tm{};
-      if (t.data_time) {
-        candidate_tm = *t.data_time;
-      } else if (t.start_time) {
-        candidate_tm = *t.start_time;
+      if (t.data_time.is_valid()) {
+        candidate_tm = t.data_time.to_tm();
+      } else if (t.start_time_data.is_valid()) {
+        candidate_tm = t.start_time_data.to_tm();
       } else {
         continue;
       }
@@ -634,15 +637,16 @@ bool CWATownForecast::parse_to_record(Stream &stream, Record& record, uint64_t &
         min_tm = candidate_tm;
       }
       if (first_time) {
-        if (t.end_time) {
-          max_tm = *t.end_time;
+        if (t.end_time_data.is_valid()) {
+          max_tm = t.end_time_data.to_tm();
         } else {
           max_tm = candidate_tm;
         }
-      } else if (t.end_time) {
-        std::time_t end_epoch = std::mktime(t.end_time.get());
+      } else if (t.end_time_data.is_valid()) {
+        std::tm end_tm = t.end_time_data.to_tm();
+        std::time_t end_epoch = std::mktime(&end_tm);
         if (end_epoch > std::mktime(&max_tm)) {
-          max_tm = *t.end_time;
+          max_tm = end_tm;
         }
       }
       first_time = false;
@@ -671,18 +675,21 @@ bool CWATownForecast::parse_to_record(Stream &stream, Record& record, uint64_t &
   for (const auto &we : record.weather_elements) {
     combine(we.element_name);
     for (const auto &ts : we.times) {
-      if (ts.data_time) {
-        time_t t = std::mktime(ts.data_time.get());
+      if (ts.data_time.is_valid()) {
+        std::tm tm_copy = ts.data_time.to_tm();
+        time_t t = std::mktime(&tm_copy);
         combine(std::to_string(t));
-      } else if (ts.start_time && ts.end_time) {
-        time_t t1 = std::mktime(ts.start_time.get());
-        time_t t2 = std::mktime(ts.end_time.get());
+      } else if (ts.start_time_data.is_valid() && ts.end_time_data.is_valid()) {
+        std::tm tm1 = ts.start_time_data.to_tm();
+        std::tm tm2 = ts.end_time_data.to_tm();
+        time_t t1 = std::mktime(&tm1);
+        time_t t2 = std::mktime(&tm2);
         combine(std::to_string(t1));
         combine(std::to_string(t2));
       }
 
       for (const auto &p : ts.element_values) {
-        combine(element_value_key_to_string(p.first) + p.second);
+        combine(element_value_key_to_string(p.first) + p.second.to_std_string());
       }
     }
   }
@@ -910,11 +917,11 @@ void CWATownForecast::publish_state_common_(SensorT *sensor, ElementValueKey key
     Time *ts = we->match_time(target_tm, key, fallback_to_first);
     if (ts) {
 #if ESP_LOG_LEVEL >= ESP_LOG_VERBOSE
-      if (ts->data_time)
-        ESP_LOGV(TAG, "matched (%s): %s", element_name.c_str(), tm_to_esptime(*ts->data_time).strftime("%Y-%m-%d %H:%M").c_str());
-      else if (ts->start_time && ts->end_time)
-        ESP_LOGV(TAG, "matched (%s): %s - %s", element_name.c_str(), tm_to_esptime(*ts->start_time).strftime("%Y-%m-%d %H:%M").c_str(),
-                 tm_to_esptime(*ts->end_time).strftime("%Y-%m-%d %H:%M").c_str());
+      if (ts->data_time.is_valid())
+        ESP_LOGV(TAG, "matched (%s): %s", element_name.c_str(), tm_to_esptime(ts->data_time.to_tm()).strftime("%Y-%m-%d %H:%M").c_str());
+      else if (ts->start_time_data.is_valid() && ts->end_time_data.is_valid())
+        ESP_LOGV(TAG, "matched (%s): %s - %s", element_name.c_str(), tm_to_esptime(ts->start_time_data.to_tm()).strftime("%Y-%m-%d %H:%M").c_str(),
+                 tm_to_esptime(ts->end_time_data.to_tm()).strftime("%Y-%m-%d %H:%M").c_str());
 #endif
       auto val = ts->find_element_value(key);
       if (!val.empty()) {

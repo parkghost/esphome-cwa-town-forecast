@@ -18,6 +18,13 @@
 #include "esphome/core/component.h"
 #include "esphome/core/time.h"
 
+#ifdef ESP32
+#include "esp_heap_caps.h"
+#endif
+
+#include "adaptive_string.h"
+#include "adaptive_time.h"
+
 namespace esphome {
 
 // Add missing operator== for RAMAllocator to support std::vector move operations
@@ -419,32 +426,20 @@ static inline ESPTime tm_to_esptime(const std::tm tm) {
 }
 
 struct Time {
-  std::unique_ptr<std::tm> data_time;
-  std::unique_ptr<std::tm> start_time;
-  std::unique_ptr<std::tm> end_time;
-  std::vector<std::pair<ElementValueKey, std::string>, RAMAllocator<std::pair<ElementValueKey, std::string>>> element_values;
+  AdaptiveTime data_time;
+  AdaptiveTime start_time_data;
+  AdaptiveTime end_time_data;
+  std::vector<std::pair<ElementValueKey, AdaptiveString>, RAMAllocator<std::pair<ElementValueKey, AdaptiveString>>> element_values;
 
-  Time() : element_values(RAMAllocator<std::pair<ElementValueKey, std::string>>(RAMAllocator<std::pair<ElementValueKey, std::string>>::NONE)) {}
-  Time(const Time &o) {
-    if (o.data_time) data_time.reset(new std::tm(*o.data_time));
-    if (o.start_time) start_time.reset(new std::tm(*o.start_time));
-    if (o.end_time) end_time.reset(new std::tm(*o.end_time));
+  Time() : element_values(RAMAllocator<std::pair<ElementValueKey, AdaptiveString>>(RAMAllocator<std::pair<ElementValueKey, AdaptiveString>>::NONE)) {}
+  Time(const Time &o) : data_time(o.data_time), start_time_data(o.start_time_data), end_time_data(o.end_time_data) {
     for (const auto &p : o.element_values) element_values.push_back(p);
   }
   Time &operator=(const Time &o) {
     if (this == &o) return *this;
-    if (o.data_time)
-      data_time.reset(new std::tm(*o.data_time));
-    else
-      data_time.reset();
-    if (o.start_time)
-      start_time.reset(new std::tm(*o.start_time));
-    else
-      start_time.reset();
-    if (o.end_time)
-      end_time.reset(new std::tm(*o.end_time));
-    else
-      end_time.reset();
+    data_time = o.data_time;
+    start_time_data = o.start_time_data;
+    end_time_data = o.end_time_data;
     element_values.clear();
     for (const auto &p : o.element_values) element_values.push_back(p);
     return *this;
@@ -454,16 +449,16 @@ struct Time {
 
   std::string find_element_value(ElementValueKey key) const {
     for (const auto &p : this->element_values) {
-      if (p.first == key) return p.second;
+      if (p.first == key) return p.second.to_std_string();
     }
     return std::string();
   }
 
   std::tm to_tm() const {
-    if (this->data_time)
-      return *this->data_time;
-    else if (this->start_time)
-      return *this->start_time;
+    if (this->data_time.is_valid())
+      return this->data_time.to_tm();
+    else if (this->start_time_data.is_valid())
+      return this->start_time_data.to_tm();
     else
       return std::tm{};
   }
@@ -515,9 +510,9 @@ struct WeatherElement {
         if (dt_epoch >= start_epoch && dt_epoch < end_epoch) {
           result.push_back(t);
         }
-      } else if (t.start_time && t.end_time) {
-        std::tm st = *t.start_time;
-        std::tm en = *t.end_time;
+      } else if (t.start_time_data.is_valid() && t.end_time_data.is_valid()) {
+        std::tm st = t.start_time_data.to_tm();
+        std::tm en = t.end_time_data.to_tm();
         std::time_t st_epoch = std::mktime(&st);
         std::time_t en_epoch = std::mktime(&en);
         // check if interval overlaps [start, end)
@@ -561,9 +556,9 @@ struct WeatherElement {
         if (dt_epoch <= tgt_epoch) {
           best = const_cast<Time *>(&t);
         }
-      } else if (t.start_time && t.end_time) {
-        std::tm st = *t.start_time;
-        std::tm en = *t.end_time;
+      } else if (t.start_time_data.is_valid() && t.end_time_data.is_valid()) {
+        std::tm st = t.start_time_data.to_tm();
+        std::tm en = t.end_time_data.to_tm();
         std::time_t st_epoch = std::mktime(&st);
         std::time_t en_epoch = std::mktime(&en);
         if (tgt_epoch >= st_epoch && tgt_epoch < en_epoch) {
@@ -574,14 +569,14 @@ struct WeatherElement {
     if (best == nullptr && fallback_to_first_element) {
       best = const_cast<Time *>(&this->times[0]);
       if (key == ElementValueKey::UV_EXPOSURE_LEVEL || key == ElementValueKey::UV_INDEX) {
-        if (best->start_time) {
-          std::tm st = *best->start_time;
+        if (best->start_time_data.is_valid()) {
+          std::tm st = best->start_time_data.to_tm();
           std::tm tgt = target;
           std::time_t st_epoch = std::mktime(&st);
           std::time_t tm_epoch = std::mktime(&tgt);
 
           if (st_epoch > tm_epoch && (st_epoch - tm_epoch) > UV_LOOKAHEAD_MINUTES * 60) {
-            ESP_LOGD(TAG, "UV data fallback outside of the forecast window");
+            ESP_LOGW(TAG, "UV data fallback outside of the forecast window");
             return nullptr;
           }
         }
@@ -605,6 +600,9 @@ struct Record {
   std::vector<WeatherElement, RAMAllocator<WeatherElement>> weather_elements;
 
   Record() : weather_elements(RAMAllocator<WeatherElement>(RAMAllocator<WeatherElement>::NONE)) {}
+
+  // Note: Using standard types provides full compatibility while the internal
+  // Time and WeatherElement structures use adaptive memory allocation for optimization
 
   const WeatherElement *find_weather_element(const std::string &name) const {
     for (const auto &we : weather_elements) {
@@ -656,10 +654,10 @@ struct Record {
       ESP_LOGI(TAG, "  Weather Element: %s", we.element_name.c_str());
       for (const auto &t : we.times) {
         std::string datetime_str = "";
-        if (t.data_time) {
-          datetime_str = tm_to_esptime(*t.data_time).strftime("%Y-%m-%dT%H:%M:%S");
-        } else if (t.start_time && t.end_time) {
-          datetime_str = tm_to_esptime(*t.start_time).strftime("%Y-%m-%dT%H:%M:%S") + " - " + tm_to_esptime(*t.end_time).strftime("%Y-%m-%dT%H:%M:%S");
+        if (t.data_time.is_valid()) {
+          datetime_str = tm_to_esptime(t.data_time.to_tm()).strftime("%Y-%m-%dT%H:%M:%S");
+        } else if (t.start_time_data.is_valid() && t.end_time_data.is_valid()) {
+          datetime_str = tm_to_esptime(t.start_time_data.to_tm()).strftime("%Y-%m-%dT%H:%M:%S") + " - " + tm_to_esptime(t.end_time_data.to_tm()).strftime("%Y-%m-%dT%H:%M:%S");
         }
 
         std::string joined_values;
@@ -667,7 +665,7 @@ struct Record {
           if (!joined_values.empty()) {
             joined_values += ", ";
           }
-          joined_values += element_value_key_to_string(kv.first) + "=" + kv.second;
+          joined_values += element_value_key_to_string(kv.first) + "=" + kv.second.to_std_string();
         }
 
         ESP_LOGI(TAG, "    Time: %s    %s", datetime_str.c_str(), joined_values.c_str());
