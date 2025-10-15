@@ -12,6 +12,7 @@
 #include <functional>
 #include <set>
 
+#include "esphome/components/network/util.h"
 #include "esphome/components/text_sensor/text_sensor.h"
 #include "esphome/components/watchdog/watchdog.h"
 #include "esphome/core/helpers.h"
@@ -221,8 +222,8 @@ bool CWATownForecast::send_request_() {
     return false;
   }
 
-  if (WiFi.status() != WL_CONNECTED) {
-    ESP_LOGW(TAG, "WiFi not connected");
+  if (!network::is_connected()) {
+    ESP_LOGW(TAG, "Network not connected");
     return false;
   }
   watchdog::WatchdogManager wdm(this->watchdog_timeout_.value());
