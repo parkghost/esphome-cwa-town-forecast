@@ -487,6 +487,7 @@ bool CWATownForecast::parse_to_record(Stream &stream, Record& record, uint64_t &
   ESP_LOGD(TAG, "Sunset Latitude: %f, Longitude: %f, Offset: %d", record.latitude, record.longitude, timezone_offset);
 
   ArduinoJson::JsonDocument time_obj;
+  bool has_valid_data = false;  // Track if we have at least one element with valid data
   do {
     App.feed_wdt();
     WeatherElement we;
@@ -509,6 +510,9 @@ bool CWATownForecast::parse_to_record(Stream &stream, Record& record, uint64_t &
       stream.read();
       continue;
     }
+
+    // Mark that we found at least one element with data
+    has_valid_data = true;
 
     do {
       time_obj.clear();      
@@ -618,6 +622,12 @@ bool CWATownForecast::parse_to_record(Stream &stream, Record& record, uint64_t &
     } while (stream.findUntil(",", "]"));
     record.weather_elements.push_back(std::move(we));
   } while (stream.findUntil(",", "]"));
+
+  // Check if we got any valid data
+  if (!has_valid_data) {
+    ESP_LOGE(TAG, "API response has no valid data - all Time arrays are empty");
+    return false;
+  }
 
   // Determine start and end time for the entire record
   bool first_time = true;
