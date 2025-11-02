@@ -18,7 +18,8 @@ esphome:
 
 esp32:
   variant: esp32s3
-  board: esp32-s3-devkitc-1
+  framework:
+    type: arduino
 
 psram:
   mode: quad
@@ -30,8 +31,13 @@ wifi:
 
 ota:
   - platform: esphome
+  - platform: web_server
 
 api:
+
+web_server:
+  version: 3
+  port: 80
 
 globals:
   - id: initial

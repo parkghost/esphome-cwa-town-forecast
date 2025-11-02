@@ -18,6 +18,8 @@ esphome:
 
 esp32:
   board: esp32-c3-devkitm-1
+  framework:
+    type: arduino
 
 wifi:
   ssid: !secret wifi_ssid
@@ -25,6 +27,7 @@ wifi:
 
 ota:
   - platform: esphome
+  - platform: web_server
 
 api:
 
