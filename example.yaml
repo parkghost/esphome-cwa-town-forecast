@@ -58,7 +58,7 @@ time:
 
 cwa_town_forecast:
   - api_key: !secret cwa_api_key
-    city_name: !lambda return id(city_name).state;
+    city_name: !lambda return id(city_name).current_option();
     town_name: !lambda return id(town_name).state;
     mode: 3-DAYS
     time_to: 1d
