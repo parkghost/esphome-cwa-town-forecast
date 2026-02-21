@@ -324,12 +324,12 @@ text_sensor:
 
   - platform: template
     id: forecast_3d_start_end
-    name: "3D Data Start/End"
+    name: "3D Data Start-End"
     entity_category: diagnostic
 
   - platform: template
     id: forecast_7d_start_end
-    name: "7D Data Start/End"
+    name: "7D Data Start-End"
     entity_category: diagnostic
 
 script:
