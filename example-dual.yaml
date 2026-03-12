@@ -19,7 +19,12 @@ esphome:
 esp32:
   variant: esp32s3
   framework:
-    type: arduino
+    type: esp-idf
+
+http_request:
+  timeout: 10s
+  watchdog_timeout: 30s
+  verify_ssl: false
 
 psram:
   mode: quad
@@ -187,18 +192,18 @@ button:
     entity_category: diagnostic
     on_press:
       - lambda: |-
-          ESP_LOGI("diagnostic", "Before clear data: free heap:%u, max block:%u", ESP.getFreeHeap(), heap_caps_get_largest_free_block(MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL));
+          ESP_LOGI("diagnostic", "Before clear data: free heap:%u, max block:%u", esp_get_free_heap_size(), heap_caps_get_largest_free_block(MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL));
           id(town_forecast_3d).clear_data();
-          ESP_LOGI("diagnostic", "After clear data: free heap:%u, max block:%u", ESP.getFreeHeap(), heap_caps_get_largest_free_block(MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL));
+          ESP_LOGI("diagnostic", "After clear data: free heap:%u, max block:%u", esp_get_free_heap_size(), heap_caps_get_largest_free_block(MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL));
 
   - platform: template
     name: "Clear Forecast 7D Data"
     entity_category: diagnostic
     on_press:
       - lambda: |-
-          ESP_LOGI("diagnostic", "Before clear data: free heap:%u, max block:%u", ESP.getFreeHeap(), heap_caps_get_largest_free_block(MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL));
+          ESP_LOGI("diagnostic", "Before clear data: free heap:%u, max block:%u", esp_get_free_heap_size(), heap_caps_get_largest_free_block(MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL));
           id(town_forecast_7d).clear_data();
-          ESP_LOGI("diagnostic", "After clear data: free heap:%u, max block:%u", ESP.getFreeHeap(), heap_caps_get_largest_free_block(MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL));
+          ESP_LOGI("diagnostic", "After clear data: free heap:%u, max block:%u", esp_get_free_heap_size(), heap_caps_get_largest_free_block(MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL));
 
 sensor:
   - platform: debug

@@ -82,9 +82,6 @@ This external component for ESPHome fetches [town weather forecast](https://www.
 * **fallback_to_first_element** (Optional, boolean, templatable): Whether to fallback to the first time element if no matching time is found when publishing data. Default `true`.
 * **retain_fetched_data** (Optional, boolean, templatable): Whether to retain fetched forecast data after publishing states. Default `false`. When disabled, data is cleared after publishing to optimize memory usage.
 * **sensor_expiry** (Optional, Time, templatable): Duration to retain last values after failures. Default `1h`.
-* **watchdog_timeout** (Optional, Time, templatable): Timeout for the request watchdog. Default `30s`.
-* **http_connect_timeout** (Optional, Time, templatable): HTTP connect timeout. Default `5s`.
-* **http_timeout** (Optional, Time, templatable): HTTP read timeout. Default `10s`.
 * **retry_count** (Optional, integer, templatable): Number of retry attempts for failed HTTP requests. Default `1`. Range: 0-5.
 * **retry_delay** (Optional, Time, templatable): Base delay between retry attempts. Uses exponential backoff with jitter. Default `1s`.
 * **update_interval** (Optional, Time): How often to check for new data. Defaults to `never` (manual updates only).
@@ -215,9 +212,19 @@ text_sensor:
 #### Example
 
 ```yaml
+esp32:
+  board: esp32-s3-devkitc-1
+  framework:
+    type: esp-idf
+
 external_components:
   - source: github://parkghost/esphome-cwa-town-forecast
     components: [cwa_town_forecast]
+
+http_request:
+  timeout: 10s
+  watchdog_timeout: 30s
+  verify_ssl: false
 
 time:
   - platform: sntp

@@ -1,8 +1,13 @@
 #include "cwa_town_forecast.h"
 
-#include <HTTPClient.h>
-#include <UrlEncode.h>
 #include <sunset.h>
+
+#include "url_encode.h"
+#include "http_stream_adapter.h"
+
+#include <esp_random.h>
+#include <esp_heap_caps.h>
+#include <esp_system.h>
 
 #include <algorithm>
 #include <cctype>
@@ -14,7 +19,6 @@
 
 #include "esphome/components/network/util.h"
 #include "esphome/components/text_sensor/text_sensor.h"
-#include "esphome/components/watchdog/watchdog.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/time.h"
 
@@ -26,14 +30,14 @@ float CWATownForecast::get_setup_priority() const { return setup_priority::LATE;
 
 // Initializes the component.
 void CWATownForecast::setup() {
-  if (psramFound()) {
-    ESP_LOGI(TAG, "PSRAM detected (%d bytes), using extended memory allocation", ESP.getPsramSize());
+  if (CWA_PSRAM_AVAILABLE()) {
+    ESP_LOGI(TAG, "PSRAM detected (%zu bytes), using extended memory allocation", heap_caps_get_total_size(MALLOC_CAP_SPIRAM));
     this->record_.weather_elements.reserve(32);
     ESP_LOGV(TAG, "Using extended buffers for PSRAM");
   } else {
     ESP_LOGI(TAG, "No PSRAM detected, using conservative memory allocation");
     this->record_.weather_elements.reserve(16);
-    
+
     if (this->early_data_clear_.value() == EarlyDataClear::AUTO) {
       ESP_LOGV(TAG, "Auto-enabled early data clear for memory conservation");
     }
@@ -47,53 +51,18 @@ void CWATownForecast::update() {
     return;
   }
 
-  auto now = this->rtc_->now();
-  std::tm tm = now.to_c_tm();
-  if (send_request_with_retry_()) {
-    this->status_clear_warning();
-
-    if (this->last_success_) {
-      this->last_success_->publish_state(now.strftime("%Y-%m-%d %H:%M:%S"));
-    }
-
-    this->publish_states_();
-
-    time_t now_epoch = std::mktime(&tm);
-    time_t expiry_offset = static_cast<time_t>(this->sensor_expiry_.value() / 1000);
-    this->sensor_expiration_time_ = now_epoch + expiry_offset;
-  } else {
-    this->status_set_warning();
-    this->on_error_trigger_.trigger();
-
-    if (this->last_error_) {
-      this->last_error_->publish_state(now.strftime("%Y-%m-%d %H:%M:%S"));
-    }
-
-    time_t epoch = std::mktime(&tm);
-    char now_buf[20];
-    std::strftime(now_buf, sizeof(now_buf), "%Y-%m-%d %H:%M:%S", &tm);
-    std::tm exp_tm = *std::localtime(&this->sensor_expiration_time_);
-    char exp_buf[20];
-    std::strftime(exp_buf, sizeof(exp_buf), "%Y-%m-%d %H:%M:%S", &exp_tm);
-    ESP_LOGV(TAG, "Current time: %s, Expiration time: %s", now_buf, exp_buf);
-    if (epoch > this->sensor_expiration_time_) {
-      ESP_LOGW(TAG, "Sensor data expired");
-      this->publish_states_();
-    }
+  // If a retry is in progress, cancel it and start fresh
+  if (this->retry_in_progress_) {
+    this->cancel_timeout("cwa_retry");
+    this->retry_in_progress_ = false;
+    ESP_LOGD(TAG, "Cancelled pending retry, starting fresh request");
   }
 
-  if (!this->retain_fetched_data_.value()) {
-    record_.weather_elements.clear();
-  }
+  this->try_send_request_(0);
 }
 
 // Logs the component configuration.
 void CWATownForecast::dump_config() {
-  bool psram_available = false;
-#ifdef USE_PSRAM
-  psram_available = true;
-#endif
-
   ESP_LOGCONFIG(TAG, "CWA Town Forecast:");
   ESP_LOGCONFIG(TAG, "  API Key: %s", api_key_.value().empty() ? "not set" : "set");
   ESP_LOGCONFIG(TAG, "  City Name: %s", city_name_.value().c_str());
@@ -112,12 +81,9 @@ void CWATownForecast::dump_config() {
   ESP_LOGCONFIG(TAG, "  Fallback to First Element: %s", fallback_to_first_element_.value() ? "true" : "false");
   ESP_LOGCONFIG(TAG, "  Retain Fetched Data: %s", retain_fetched_data_.value() ? "true" : "false");
   ESP_LOGCONFIG(TAG, "  Sensor Expiry: %u minutes", sensor_expiry_.value() / 1000 / 60);
-  ESP_LOGCONFIG(TAG, "  Watchdog Timeout: %u ms", watchdog_timeout_.value());
-  ESP_LOGCONFIG(TAG, "  HTTP Connect Timeout: %u ms", http_connect_timeout_.value());
-  ESP_LOGCONFIG(TAG, "  HTTP Timeout: %u ms", http_timeout_.value());
   ESP_LOGCONFIG(TAG, "  Retry Count: %u", retry_count_.value());
   ESP_LOGCONFIG(TAG, "  Retry Delay: %u ms", retry_delay_.value());
-  ESP_LOGCONFIG(TAG, "  PSRAM Available: %s", psram_available ? "true" : "false");
+  ESP_LOGCONFIG(TAG, "  PSRAM Available: %s", CWA_PSRAM_AVAILABLE() ? "true" : "false");
   LOG_UPDATE_INTERVAL(this);
 }
 
@@ -163,60 +129,94 @@ bool CWATownForecast::validate_config_() {
   return valid;
 }
 
-// Sends HTTP request with retry mechanism.
-bool CWATownForecast::send_request_with_retry_() {
-  uint32_t retry_count = retry_count_.value();
-  uint32_t retry_delay = retry_delay_.value();
-  
-  // If retry count is 0, just make one attempt
-  if (retry_count == 0) {
-    return send_request_();
+// Attempts to send HTTP request, scheduling retries via set_timeout() on failure.
+void CWATownForecast::try_send_request_(uint32_t attempt) {
+  uint32_t retry_count = this->retry_count_.value();
+
+  if (attempt > 0) {
+    ESP_LOGW(TAG, "Retrying request (attempt %u/%u)", attempt + 1, retry_count + 1);
   }
-  
-  for (uint32_t attempt = 0; attempt <= retry_count; ++attempt) {
+  ESP_LOGD(TAG, "HTTP request attempt %u/%u", attempt + 1, retry_count + 1);
+
+  if (this->send_request_()) {
+    // Success
     if (attempt > 0) {
-      ESP_LOGW(TAG, "Retrying request (attempt %u/%u)", attempt + 1, retry_count + 1);
-      
-      // Calculate exponential backoff with jitter
-      uint32_t backoff_delay = retry_delay * (1 << (attempt - 1)); // Exponential backoff
-      uint32_t jitter = random() % 1000; // Add up to 1 second of jitter
-      uint32_t total_delay = backoff_delay + jitter;
-      
-      // Cap the delay to prevent excessive waiting
-      if (total_delay > 30000) { // Max 30 seconds
-        total_delay = 30000;
-      }
-      
-      ESP_LOGD(TAG, "Backoff delay: %u ms (base: %u ms, jitter: %u ms)", total_delay, backoff_delay, jitter);
-      
-      // Use non-blocking delay to avoid blocking the main loop
-      uint32_t delay_end = millis() + total_delay;
-      while (millis() < delay_end) {
-        App.feed_wdt();
-        delay(100); // Small delay to prevent busy waiting
-      }
+      ESP_LOGI(TAG, "Request succeeded on attempt %u/%u", attempt + 1, retry_count + 1);
     }
-    
-    ESP_LOGD(TAG, "HTTP request attempt %u/%u", attempt + 1, retry_count + 1);
-    
-    if (send_request_()) {
-      if (attempt > 0) {
-        ESP_LOGI(TAG, "Request succeeded on attempt %u/%u", attempt + 1, retry_count + 1);
-      }
-      return true;
+
+    this->retry_in_progress_ = false;
+    this->status_clear_warning();
+
+    auto now = this->rtc_->now();
+    if (this->last_success_) {
+      this->last_success_->publish_state(now.strftime("%Y-%m-%d %H:%M:%S"));
     }
-    
-    if (attempt < retry_count) {
-      ESP_LOGW(TAG, "Request failed on attempt %u/%u, will retry", attempt + 1, retry_count + 1);
+
+    this->publish_states_();
+
+    std::tm tm = now.to_c_tm();
+    time_t now_epoch = std::mktime(&tm);
+    time_t expiry_offset = static_cast<time_t>(this->sensor_expiry_.value() / 1000);
+    this->sensor_expiration_time_ = now_epoch + expiry_offset;
+
+    if (!this->retain_fetched_data_.value()) {
+      this->record_.release_data();
     }
+    return;
   }
-  
+
+  // Failure — decide whether to retry or give up
+  if (attempt < retry_count) {
+    ESP_LOGW(TAG, "Request failed on attempt %u/%u, will retry", attempt + 1, retry_count + 1);
+
+    uint32_t retry_delay = this->retry_delay_.value();
+    uint32_t backoff_delay = retry_delay * (1 << attempt);
+    uint32_t jitter = esp_random() % 1000;
+    uint32_t total_delay = backoff_delay + jitter;
+    if (total_delay > 30000) {
+      total_delay = 30000;
+    }
+
+    ESP_LOGD(TAG, "Backoff delay: %u ms (base: %u ms, jitter: %u ms)", total_delay, backoff_delay, jitter);
+
+    uint32_t next_attempt = attempt + 1;
+    this->retry_in_progress_ = true;
+    this->set_timeout("cwa_retry", total_delay, [this, next_attempt]() {
+      this->try_send_request_(next_attempt);
+    });
+    return;
+  }
+
+  // Final failure
   ESP_LOGE(TAG, "Request failed after %u attempts", retry_count + 1);
-  return false;
+  this->retry_in_progress_ = false;
+  this->status_set_warning();
+  this->on_error_trigger_.trigger();
+
+  auto now = this->rtc_->now();
+  if (this->last_error_) {
+    this->last_error_->publish_state(now.strftime("%Y-%m-%d %H:%M:%S"));
+  }
+
+  std::tm tm = now.to_c_tm();
+  time_t epoch = std::mktime(&tm);
+  if (epoch > this->sensor_expiration_time_) {
+    ESP_LOGW(TAG, "Sensor data expired");
+    this->publish_states_();
+  }
+
+  if (!this->retain_fetched_data_.value()) {
+    this->record_.release_data();
+  }
 }
 
 // Sends HTTP request to fetch forecast data.
 bool CWATownForecast::send_request_() {
+  if (!this->http_request_) {
+    ESP_LOGE(TAG, "HTTP request component not configured");
+    return false;
+  }
+
   if (!this->rtc_->now().is_valid()) {
     ESP_LOGW(TAG, "RTC is not valid");
     return false;
@@ -226,24 +226,18 @@ bool CWATownForecast::send_request_() {
     ESP_LOGW(TAG, "Network not connected");
     return false;
   }
-  watchdog::WatchdogManager wdm(this->watchdog_timeout_.value());
-
-  bool psram_available = false;
-#ifdef USE_PSRAM
-  psram_available = true;
-#endif
 
   switch (early_data_clear_.value()) {
     case AUTO:
-      if (!psram_available) {
+      if (!CWA_PSRAM_AVAILABLE()) {
         ESP_LOGD(TAG, "[Auto] Clear forecast data before sending request");
-        this->record_.weather_elements.clear();
+        this->record_.release_data();
       }
       break;
 
     case ON:
       ESP_LOGD(TAG, "[On] Clear forecast data before sending request");
-      this->record_.weather_elements.clear();
+      this->record_.release_data();
       break;
   }
 
@@ -259,17 +253,15 @@ bool CWATownForecast::send_request_() {
 
   ESP_LOGD(TAG, "City name: %s, Town name: %s, Mode: %s", city_name.c_str(), town_name_.value().c_str(), mode_to_string(mode).c_str());
   ESP_LOGD(TAG, "Resource ID: %s", resource_id);
-  String encoded_town_name = urlEncode(town_name_.value().c_str());
+  std::string encoded_town_name = url_encode(town_name_.value());
   std::string element_param;
   if (!this->weather_elements_.empty()) {
-    std::vector<std::string> encoded_names;
-    for (const auto &name : this->weather_elements_) {
-      encoded_names.emplace_back(urlEncode(name.c_str()).c_str());
-    }
     std::string joined;
-    for (size_t i = 0; i < encoded_names.size(); ++i) {
-      if (i > 0) joined += ",";
-      joined += encoded_names[i];
+    bool first = true;
+    for (const auto &name : this->weather_elements_) {
+      if (!first) joined += ",";
+      joined += url_encode(name);
+      first = false;
     }
     element_param = "&ElementName=" + joined;
   }
@@ -284,78 +276,58 @@ bool CWATownForecast::send_request_() {
       t += seconds;
       std::tm tm_new = ESPTime::from_epoch_local(t).to_c_tm();
       std::strftime(buffer, sizeof(buffer), "%Y-%m-%dT%H:%M:%S", &tm_new);
-      std::string encoded_buffer = urlEncode(buffer).c_str();
+      std::string encoded_buffer = url_encode(std::string(buffer));
       time_to_param = "&timeTo=" + encoded_buffer;
     } else {
       ESP_LOGW(TAG, "Ignoring timeTo parameter, RTC not set");
     }
   }
   std::string url = "https://opendata.cwa.gov.tw/api/v1/rest/datastore/" + std::string(resource_id) + "?Authorization=" + api_key_.value() +
-                    "&format=JSON&LocationName=" + std::string(encoded_town_name.c_str()) + element_param + time_to_param;
+                    "&format=JSON&LocationName=" + encoded_town_name + element_param + time_to_param;
 
-  HTTPClient http;
-  http.useHTTP10(true);
-  http.setConnectTimeout(http_connect_timeout_.value());
-  http.setTimeout(http_timeout_.value());
-  http.addHeader("Content-Type", "application/json");
-  http.begin(url.c_str());
   ESP_LOGD(TAG, "Sending query: %s", url.c_str());
-  ESP_LOGD(TAG, "Before request: free heap:%u, max block:%u", ESP.getFreeHeap(), heap_caps_get_largest_free_block(MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL));
-  
-  // Start timer for overall request timeout protection
-  unsigned long request_start = millis();
-  uint32_t max_request_time = http_connect_timeout_.value() + http_timeout_.value() + 5000; // Add 5s buffer
-  
+
+  // Build HTTP request using ESPHome's http_request component
   App.feed_wdt();
-  int http_code = http.GET();
-  
-  // Check if request took too long
-  unsigned long request_duration = millis() - request_start;
-  if (request_duration > max_request_time) {
-    ESP_LOGW(TAG, "HTTP request took too long: %lu ms (max: %u ms)", request_duration, max_request_time);
-    http.end();
-    return false;
-  }
-  ESP_LOGD(TAG, "After request: free heap:%u, max block:%u", ESP.getFreeHeap(), heap_caps_get_largest_free_block(MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL));
-  
-  // Use RAII pattern to ensure HTTP connection is always closed
+  auto container = this->http_request_->get(url);
+
   bool request_success = false;
   uint64_t hash_code = 0;
-  
-  if (http_code == HTTP_CODE_OK) {
+
+  if (container == nullptr) {
+    ESP_LOGE(TAG, "HTTP request failed: no response container");
+  } else if (container->status_code != 200) {
+    ESP_LOGE(TAG, "HTTP request failed with code: %d", container->status_code);
+  } else {
     App.feed_wdt();
-    
-    // Get stream and set timeout for read operations
-    auto& stream = http.getStream();
-    
-    // Wrap stream with our buffered wrapper for IncompleteInput debugging
-    BufferedStream bufferedStream(stream, 1024); // 1KB buffer
-    ESP_LOGD(TAG, "Using BufferedStream (1KB buffer) to improve JSON parsing reliability and monitor stream reading");
-    
+    ESP_LOGD(TAG, "HTTP 200 OK, content_length: %zu", container->content_length);
+
+    // Wrap container with our stream adapter for streaming JSON parsing
+    HttpStreamAdapter stream(container, 1024, this->http_request_->get_timeout()); // 1KB buffer
+
     // Add timeout protection for response processing
     unsigned long process_start = millis();
-    uint32_t max_process_time = http_timeout_.value() + 10000; // Add 10s buffer for processing
-    
-    request_success = this->process_response_(bufferedStream, hash_code);
-    
+    uint32_t max_process_time = this->http_request_->get_timeout() + 10000; // Add 10s buffer for processing
+
+    request_success = this->process_response_(stream, hash_code);
+
     unsigned long process_duration = millis() - process_start;
     if (process_duration > max_process_time) {
       ESP_LOGW(TAG, "Response processing took too long: %lu ms (max: %u ms)", process_duration, max_process_time);
       request_success = false;
     }
-    
-    ESP_LOGD(TAG, "Total bytes read from stream: %d", bufferedStream.getBytesRead());
+
+    ESP_LOGD(TAG, "Total bytes read from stream: %zu", stream.getBytesRead());
     ESP_LOGD(TAG, "Response processing duration: %lu ms", process_duration);
-    
-    // Drain any remaining buffered data to avoid SSL state issues
-    bufferedStream.drainBuffer();
-  } else {
-    ESP_LOGE(TAG, "HTTP request failed with code: %d", http_code);
+
+    // Drain any remaining buffered data
+    stream.drainBuffer();
   }
 
-  // Always end HTTP connection, regardless of success or failure
-  http.end();
-  ESP_LOGD(TAG, "After json parse: free heap:%u, max block:%u", ESP.getFreeHeap(), heap_caps_get_largest_free_block(MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL));
+  if (container) {
+    container->end();
+  }
+  container.reset();
 
   if (request_success) {
     if (this->check_changes(hash_code)) {
@@ -412,19 +384,19 @@ void CWATownForecast::restore_from_checkpoint(Record& record, const MinimalCheck
     record.latitude = checkpoint.latitude;
     record.longitude = checkpoint.longitude;
     record.mode = checkpoint.mode;
-    record.weather_elements.clear();
+    record.release_data();
     if (checkpoint.element_count > 0) {
       record.weather_elements.reserve(checkpoint.element_count);
     }
   }
 }
 
-bool CWATownForecast::parse_to_record(Stream &stream, Record& record, uint64_t &hash_code) {
+bool CWATownForecast::parse_to_record(HttpStreamAdapter &stream, Record& record, uint64_t &hash_code) {
   if (!stream.find("\"success\":")) {
     ESP_LOGE(TAG, "Could not find success field");
     return false;
   }
-  String success_val = stream.readStringUntil(',');
+  std::string success_val = stream.readStringUntil(',');
   if (success_val != "\"true\"") {
     ESP_LOGE(TAG, "API response 'success' is not true: %s", success_val.c_str());
     return false;
@@ -437,43 +409,34 @@ bool CWATownForecast::parse_to_record(Stream &stream, Record& record, uint64_t &
     ESP_LOGE(TAG, "Could not find LocationsName");
     return false;
   }
-  record.locations_name = stream.readStringUntil('"').c_str();
+  record.locations_name = stream.readStringUntil('"');
 
   if (!stream.find("\"LocationName\":\"")) {
     ESP_LOGE(TAG, "Could not find LocationName");
     return false;
   }
-  record.location_name = stream.readStringUntil('"').c_str();
+  record.location_name = stream.readStringUntil('"');
 
-  if (!stream.find("\"Latitude\":\"")) {
-    ESP_LOGE(TAG, "Could not find Latitude");
-    return false;
-  }
-  String lat_str = stream.readStringUntil('"');
-  const char *lat_cstr = lat_str.c_str();
-  char *lat_end = nullptr;
-  double lat_val = std::strtod(lat_cstr, &lat_end);
-  if (lat_cstr == lat_end || *lat_end != '\0') {
-    ESP_LOGW(TAG, "Invalid latitude value: %s", lat_cstr);
-    record.latitude = NAN;
-  } else {
-    record.latitude = lat_val;
-  }
+  auto parse_coordinate = [&](const char *key, double &out) -> bool {
+    if (!stream.find(key)) {
+      ESP_LOGE(TAG, "Could not find %s", key);
+      return false;
+    }
+    std::string str = stream.readStringUntil('"');
+    const char *cstr = str.c_str();
+    char *end = nullptr;
+    double val = std::strtod(cstr, &end);
+    if (cstr == end || *end != '\0') {
+      ESP_LOGW(TAG, "Invalid coordinate value for %s: %s", key, cstr);
+      out = NAN;
+    } else {
+      out = val;
+    }
+    return true;
+  };
 
-  if (!stream.find("\"Longitude\":\"")) {
-    ESP_LOGE(TAG, "Could not find Longitude");
-    return false;
-  }
-  String lon_str = stream.readStringUntil('"');
-  const char *lon_cstr = lon_str.c_str();
-  char *lon_end = nullptr;
-  double lon_val = std::strtod(lon_cstr, &lon_end);
-  if (lon_cstr == lon_end || *lon_end != '\0') {
-    ESP_LOGW(TAG, "Invalid longitude value: %s", lon_cstr);
-    record.longitude = NAN;
-  } else {
-    record.longitude = lon_val;
-  }
+  if (!parse_coordinate("\"Latitude\":\"", record.latitude)) return false;
+  if (!parse_coordinate("\"Longitude\":\"", record.longitude)) return false;
 
   if (!stream.find("\"WeatherElement\":[")) {
     ESP_LOGE(TAG, "Could not find WeatherElement array");
@@ -495,7 +458,7 @@ bool CWATownForecast::parse_to_record(Stream &stream, Record& record, uint64_t &
       ESP_LOGE(TAG, "Could not find ElementName");
       return false;
     }
-    we.element_name = stream.readStringUntil('"').c_str();
+    we.element_name = stream.readStringUntil('"');
     if (!stream.find("\"Time\":[")) {
       ESP_LOGE(TAG, "Could not find Time array for %s", we.element_name.c_str());
       return false;
@@ -527,7 +490,7 @@ bool CWATownForecast::parse_to_record(Stream &stream, Record& record, uint64_t &
         if (err == DeserializationError::IncompleteInput) {
           ESP_LOGE(TAG, "IncompleteInput detected - JSON document was truncated");
           ESP_LOGE(TAG, "Current memory state - free heap: %u, max block: %u", 
-                   ESP.getFreeHeap(), heap_caps_get_largest_free_block(MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL));
+                   esp_get_free_heap_size(), heap_caps_get_largest_free_block(MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL));
           
           // For IncompleteInput, we should abort the entire parsing process
           // rather than try to recover, as the data integrity is compromised
@@ -577,11 +540,11 @@ bool CWATownForecast::parse_to_record(Stream &stream, Record& record, uint64_t &
           if (parse_element_value_key(kv.key().c_str(), evk)) {
             auto value = kv.value().as<std::string>();
             auto it = std::find_if(ts.element_values.begin(), ts.element_values.end(),
-                                   [&](const std::pair<ElementValueKey, AdaptiveString> &p) { return p.first == evk; });
+                                   [&](const std::pair<ElementValueKey, PsramString> &p) { return p.first == evk; });
             if (it != ts.element_values.end())
-              it->second = AdaptiveString(value);
+              it->second = PsramString(value);
             else
-              ts.element_values.emplace_back(evk, AdaptiveString(value));
+              ts.element_values.emplace_back(evk, PsramString(value));
 
             // Special handling for weather codes to generate weather icons
             if (we.element_name == WEATHER_ELEMENT_NAME_WEATHER && evk == ElementValueKey::WEATHER_CODE) {
@@ -608,9 +571,9 @@ bool CWATownForecast::parse_to_record(Stream &stream, Record& record, uint64_t &
                     icon = "night-partly-cloudy";
                   }
                 }
-                ts.element_values.emplace_back(ElementValueKey::WEATHER_ICON, AdaptiveString(icon));
+                ts.element_values.emplace_back(ElementValueKey::WEATHER_ICON, PsramString(icon));
               } else {
-                ts.element_values.emplace_back(ElementValueKey::WEATHER_ICON, AdaptiveString(""));
+                ts.element_values.emplace_back(ElementValueKey::WEATHER_ICON, PsramString(""));
               }
             }
           } else {
@@ -675,32 +638,37 @@ bool CWATownForecast::parse_to_record(Stream &stream, Record& record, uint64_t &
 
   // Calculate hash code for change detection
   uint64_t new_hash = 0;
-  std::hash<std::string> hasher;
+  std::hash<std::string> str_hasher;
   const uint64_t salt = 0x9e3779b97f4a7c15ULL;
-  auto combine = [&](const std::string &s) {
-    uint64_t h = hasher(s);
+  auto combine_str = [&](const std::string &s) {
+    uint64_t h = str_hasher(s);
     new_hash ^= h + salt + (new_hash << 6) + (new_hash >> 2);
   };
-  combine(record.locations_name);
-  combine(record.location_name);
+  auto combine_int = [&](uint64_t v) {
+    // Murmur-style integer mix
+    v ^= v >> 33;
+    v *= 0xff51afd7ed558ccdULL;
+    v ^= v >> 33;
+    new_hash ^= v + salt + (new_hash << 6) + (new_hash >> 2);
+  };
+  combine_str(record.locations_name);
+  combine_str(record.location_name);
   for (const auto &we : record.weather_elements) {
-    combine(we.element_name);
+    combine_str(we.element_name);
     for (const auto &ts : we.times) {
       if (ts.data_time.is_valid()) {
         std::tm tm_copy = ts.data_time.to_tm();
-        time_t t = std::mktime(&tm_copy);
-        combine(std::to_string(t));
+        combine_int(static_cast<uint64_t>(std::mktime(&tm_copy)));
       } else if (ts.start_time_data.is_valid() && ts.end_time_data.is_valid()) {
         std::tm tm1 = ts.start_time_data.to_tm();
         std::tm tm2 = ts.end_time_data.to_tm();
-        time_t t1 = std::mktime(&tm1);
-        time_t t2 = std::mktime(&tm2);
-        combine(std::to_string(t1));
-        combine(std::to_string(t2));
+        combine_int(static_cast<uint64_t>(std::mktime(&tm1)));
+        combine_int(static_cast<uint64_t>(std::mktime(&tm2)));
       }
 
       for (const auto &p : ts.element_values) {
-        combine(element_value_key_to_string(p.first) + p.second.to_std_string());
+        combine_int(static_cast<uint64_t>(p.first));
+        combine_str(p.second.to_std_string());
       }
     }
   }
@@ -710,7 +678,7 @@ bool CWATownForecast::parse_to_record(Stream &stream, Record& record, uint64_t &
 }
 
 // Processes the HTTP response and parses forecast data.
-bool CWATownForecast::process_response_(Stream &stream, uint64_t &hash_code) {
+bool CWATownForecast::process_response_(HttpStreamAdapter &stream, uint64_t &hash_code) {
   // Use adaptive memory management strategy
   return process_response_with_adaptive_strategy(stream, hash_code);
 }
@@ -718,14 +686,14 @@ bool CWATownForecast::process_response_(Stream &stream, uint64_t &hash_code) {
 // AdaptiveMemoryManager Implementation
 MemoryStats AdaptiveMemoryManager::get_current_stats() {
   MemoryStats stats;
-  stats.free_heap = ESP.getFreeHeap();
-  stats.max_block = ESP.getMaxAllocHeap();
-  stats.total_heap = ESP.getHeapSize();
-  stats.has_psram = psramFound();
+  stats.free_heap = esp_get_free_heap_size();
+  stats.max_block = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
+  stats.total_heap = heap_caps_get_total_size(MALLOC_CAP_8BIT);
+  stats.has_psram = CWA_PSRAM_AVAILABLE();
   
   if (stats.has_psram) {
-    stats.psram_free = ESP.getFreePsram();
-    stats.psram_total = ESP.getPsramSize();
+    stats.psram_free = heap_caps_get_free_size(MALLOC_CAP_SPIRAM);
+    stats.psram_total = heap_caps_get_total_size(MALLOC_CAP_SPIRAM);
   }
   
   // Calculate fragmentation ratio
@@ -741,17 +709,17 @@ MemoryStrategy AdaptiveMemoryManager::select_optimal_strategy(const MemoryStats&
   if (stats.has_psram && stats.psram_free > 50000) {
     return MemoryStrategy::PSRAM_DUAL_BUFFER;
   }
-  
+
   // Strategy 2: Sufficient internal memory - use checkpoint
   if (is_memory_sufficient_for_temp_record(stats)) {
     return MemoryStrategy::INTERNAL_CHECKPOINT;
   }
-  
+
   // Strategy 3: High fragmentation - use adaptive approach
   if (stats.fragmentation_ratio > MAX_FRAGMENTATION_RATIO) {
     return MemoryStrategy::ADAPTIVE_FRAGMENT;
   }
-  
+
   // Strategy 4: Low memory fallback - minimal streaming
   return MemoryStrategy::STREAM_MINIMAL;
 }
@@ -774,7 +742,7 @@ bool AdaptiveMemoryManager::is_memory_sufficient_for_temp_record(const MemorySta
   return stats.free_heap > MIN_HEAP_FOR_TEMP_RECORD && stats.max_block > MIN_BLOCK_FOR_TEMP_RECORD;
 }
 
-bool CWATownForecast::process_response_with_adaptive_strategy(Stream &stream, uint64_t &hash_code) {
+bool CWATownForecast::process_response_with_adaptive_strategy(HttpStreamAdapter &stream, uint64_t &hash_code) {
   auto stats = AdaptiveMemoryManager::get_current_stats();
   auto strategy = AdaptiveMemoryManager::select_optimal_strategy(stats);
   AdaptiveMemoryManager::log_memory_decision(strategy, stats);
@@ -794,7 +762,7 @@ bool CWATownForecast::process_response_with_adaptive_strategy(Stream &stream, ui
   }
 }
 
-bool CWATownForecast::process_with_psram_dual_buffer(Stream &stream, Record& record, uint64_t &hash_code) {
+bool CWATownForecast::process_with_psram_dual_buffer(HttpStreamAdapter &stream, Record& record, uint64_t &hash_code) {
   ESP_LOGD(TAG, "Using PSRAM dual buffer strategy");
   
   Record* temp_record = (Record*)heap_caps_malloc(sizeof(Record), MALLOC_CAP_SPIRAM);
@@ -823,11 +791,11 @@ bool CWATownForecast::process_with_psram_dual_buffer(Stream &stream, Record& rec
   return true;
 }
 
-bool CWATownForecast::process_with_internal_checkpoint(Stream &stream, Record& record, uint64_t &hash_code) {
+bool CWATownForecast::process_with_internal_checkpoint(HttpStreamAdapter &stream, Record& record, uint64_t &hash_code) {
   ESP_LOGD(TAG, "Using internal RAM checkpoint strategy");
-  
+
   auto checkpoint = create_minimal_checkpoint(record);
-  record.weather_elements.clear();
+  record.release_data();
   
   if (!parse_to_record(stream, record, hash_code)) {
     ESP_LOGW(TAG, "Parse failed, restoring from checkpoint");
@@ -839,7 +807,7 @@ bool CWATownForecast::process_with_internal_checkpoint(Stream &stream, Record& r
   return true;
 }
 
-bool CWATownForecast::process_with_adaptive_fragment(Stream &stream, Record& record, uint64_t &hash_code) {
+bool CWATownForecast::process_with_adaptive_fragment(HttpStreamAdapter &stream, Record& record, uint64_t &hash_code) {
   ESP_LOGD(TAG, "Using adaptive fragmentation strategy");
   
   // Try PSRAM first if available
@@ -866,11 +834,11 @@ bool CWATownForecast::process_with_adaptive_fragment(Stream &stream, Record& rec
   return process_with_internal_checkpoint(stream, record, hash_code);
 }
 
-bool CWATownForecast::process_with_stream_minimal(Stream &stream, Record& record, uint64_t &hash_code) {
+bool CWATownForecast::process_with_stream_minimal(HttpStreamAdapter &stream, Record& record, uint64_t &hash_code) {
   ESP_LOGD(TAG, "Using stream minimal strategy");
-  
-  // Clear old data to free memory
-  record.weather_elements.clear();
+
+  // Clear old data and free vector buffers to maximize contiguous heap
+  record.release_data();
   
   // Use minimal memory parsing directly into record
   if (!parse_to_record(stream, record, hash_code)) {

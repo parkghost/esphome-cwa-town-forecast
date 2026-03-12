@@ -18,12 +18,24 @@
 #include "esphome/core/component.h"
 #include "esphome/core/time.h"
 
-#ifdef ESP32
+#ifdef USE_ESP32
 #include "esp_heap_caps.h"
+#ifdef USE_PSRAM
+#include "esp_psram.h"
+#endif
 #endif
 
-#include "adaptive_string.h"
-#include "adaptive_time.h"
+#include "esphome/components/http_request/http_request.h"
+#include "psram_string.h"
+#include "psram_time.h"
+#include "http_stream_adapter.h"
+#include "url_encode.h"
+
+#ifdef USE_PSRAM
+#define CWA_PSRAM_AVAILABLE() esp_psram_is_initialized()
+#else
+#define CWA_PSRAM_AVAILABLE() false
+#endif
 
 namespace esphome {
 
@@ -426,12 +438,12 @@ static inline ESPTime tm_to_esptime(const std::tm tm) {
 }
 
 struct Time {
-  AdaptiveTime data_time;
-  AdaptiveTime start_time_data;
-  AdaptiveTime end_time_data;
-  std::vector<std::pair<ElementValueKey, AdaptiveString>, RAMAllocator<std::pair<ElementValueKey, AdaptiveString>>> element_values;
+  PsramTime data_time;
+  PsramTime start_time_data;
+  PsramTime end_time_data;
+  std::vector<std::pair<ElementValueKey, PsramString>, RAMAllocator<std::pair<ElementValueKey, PsramString>>> element_values;
 
-  Time() : element_values(RAMAllocator<std::pair<ElementValueKey, AdaptiveString>>(RAMAllocator<std::pair<ElementValueKey, AdaptiveString>>::NONE)) {}
+  Time() : element_values(RAMAllocator<std::pair<ElementValueKey, PsramString>>(RAMAllocator<std::pair<ElementValueKey, PsramString>>::NONE)) {}
   Time(const Time &o) : data_time(o.data_time), start_time_data(o.start_time_data), end_time_data(o.end_time_data) {
     for (const auto &p : o.element_values) element_values.push_back(p);
   }
@@ -604,6 +616,15 @@ struct Record {
   // Note: Using standard types provides full compatibility while the internal
   // Time and WeatherElement structures use adaptive memory allocation for optimization
 
+  void release_data() {
+    // Use swap idiom to guarantee deallocation — shrink_to_fit() is non-binding
+    // and may not actually free memory with custom allocators
+    {
+      std::vector<WeatherElement, RAMAllocator<WeatherElement>> empty(weather_elements.get_allocator());
+      weather_elements.swap(empty);
+    }  // empty destroyed here, all backing stores freed
+  }
+
   const WeatherElement *find_weather_element(const std::string &name) const {
     for (const auto &we : weather_elements) {
       if (we.element_name == name) return &we;
@@ -675,229 +696,6 @@ struct Record {
   }
 };
 
-// Buffered stream class that pre-reads data into internal buffer
-class BufferedStream : public Stream {
- public:
-  static constexpr size_t MIN_BUFFER_SIZE = 64;
-  static constexpr size_t MAX_BUFFER_SIZE = 4096;
-  static constexpr size_t DEFAULT_BUFFER_SIZE = 512;
-  
-  BufferedStream(Stream& stream, size_t bufferSize = DEFAULT_BUFFER_SIZE) 
-    : stream_(stream), bytes_read_(0), buffer_pos_(0), buffer_len_(0) {
-    
-    // Validate and clamp buffer size
-    if (bufferSize < MIN_BUFFER_SIZE) {
-      ESP_LOGW(TAG, "Buffer size %zu too small, using minimum %zu", bufferSize, MIN_BUFFER_SIZE);
-      bufferSize = MIN_BUFFER_SIZE;
-    } else if (bufferSize > MAX_BUFFER_SIZE) {
-      ESP_LOGW(TAG, "Buffer size %zu too large, using maximum %zu", bufferSize, MAX_BUFFER_SIZE);
-      bufferSize = MAX_BUFFER_SIZE;
-    }
-    
-    buffer_.reserve(bufferSize);
-    buffer_.resize(bufferSize);
-    if (buffer_.size() != bufferSize) {
-      ESP_LOGE(TAG, "Failed to allocate buffer for BufferedStream (requested: %zu, got: %zu)", 
-               bufferSize, buffer_.size());
-      buffer_.clear();
-    } else {
-      ESP_LOGD(TAG, "BufferedStream created with buffer size: %zu", buffer_.size());
-    }
-  }
-  
-  // Explicitly delete copy operations to prevent issues
-  BufferedStream(const BufferedStream&) = delete;
-  BufferedStream& operator=(const BufferedStream&) = delete;
-  
-  // Allow move operations
-  BufferedStream(BufferedStream&&) = default;
-  BufferedStream& operator=(BufferedStream&&) = default;
-  
-  ~BufferedStream() = default;
-  
-  // Simple health check based on buffer availability
-  bool isHealthy() const { return !buffer_.empty(); }
-  
-  int available() override {
-    // Return buffered data + underlying stream data
-    return (buffer_len_ - buffer_pos_) + stream_.available();
-  }
-  
-  int read() override {
-    // If no buffer allocated, delegate to underlying stream
-    if (buffer_.empty()) {
-      int byte = stream_.read();
-      if (byte != -1) {
-        bytes_read_++;
-      }
-      return byte;
-    }
-    
-    // If buffer is empty, try to fill it
-    if (buffer_pos_ >= buffer_len_) {
-      if (!fillBuffer()) {
-        // Fall back to direct stream reading
-        int byte = stream_.read();
-        if (byte != -1) {
-          bytes_read_++;
-        }
-        return byte;
-      }
-    }
-    
-    // Return from buffer if available
-    if (buffer_pos_ < buffer_len_) {
-      int byte = buffer_[buffer_pos_++];
-      bytes_read_++;
-      
-      // Only log on significant milestones or special debug mode
-      #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
-      if (bytes_read_ % 500 == 0 || (byte == '{' && bytes_read_ < 50) || 
-          (byte == '}' && bytes_read_ > 100)) {
-        ESP_LOGVV(TAG, "Read byte %d: 0x%02X ('%c') at position %zu", 
-                  byte, byte, (byte >= 32 && byte <= 126) ? (char)byte : '.', bytes_read_);
-      }
-      #endif
-      
-      return byte;
-    }
-    
-    return -1; // No data available
-  }
-  
-  int peek() override {
-    // If buffer is empty, try to fill it
-    if (buffer_pos_ >= buffer_len_) {
-      fillBuffer();
-    }
-    
-    // Return from buffer if available
-    if (buffer_pos_ < buffer_len_) {
-      return buffer_[buffer_pos_];
-    }
-    
-    return -1; // No data available
-  }
-  
-  void flush() override { stream_.flush(); }
-  size_t write(uint8_t byte) override { return stream_.write(byte); }
-  
-  // Delegate other important methods (bypass buffer for these operations)
-  void setTimeout(unsigned long timeout) { stream_.setTimeout(timeout); }
-  bool find(char* target) { 
-    ESP_LOGV(TAG, "find() bypassing buffer, delegating to underlying stream");
-    return stream_.find(target); 
-  }
-  bool findUntil(char* target, char* terminator) { 
-    ESP_LOGV(TAG, "findUntil() bypassing buffer, delegating to underlying stream");
-    return stream_.findUntil(target, terminator); 
-  }
-  
-  String readStringUntil(char terminator) {
-    String result;
-    result.reserve(128); // Pre-allocate reasonable capacity
-    
-    int c;
-    while ((c = read()) != -1) {
-      if (c == terminator) break;
-      result += (char)c;
-      
-      // Prevent runaway strings
-      if (result.length() > 1024) {
-        ESP_LOGW(TAG, "readStringUntil('%c') exceeded 1024 chars, truncating", terminator);
-        break;
-      }
-    }
-    
-    ESP_LOGV(TAG, "readStringUntil('%c') returned: %s (length: %d)", 
-             terminator, result.c_str(), result.length());
-    return result;
-  }
-  
-  size_t getBytesRead() const { return bytes_read_; }
-  size_t getBufferSize() const { return buffer_.size(); }
-  size_t getBufferedBytes() const { return buffer_len_ - buffer_pos_; }
-  
-  // Additional monitoring methods
-  float getBufferUtilization() const { 
-    return buffer_.empty() ? 0.0f : (float)buffer_len_ / (float)buffer_.size(); 
-  }
-  
-  bool hasBufferedData() const { return buffer_pos_ < buffer_len_; }
-  
-  // Debug information
-  void logBufferStats() const {
-    ESP_LOGD(TAG, "Buffer stats: size=%zu, pos=%zu, len=%zu, utilization=%.1f%%, healthy=%s", 
-             buffer_.size(), buffer_pos_, buffer_len_, 
-             getBufferUtilization() * 100.0f, isHealthy() ? "true" : "false");
-  }
-  
-  // Drain remaining buffered data to avoid SSL connection state issues
-  void drainBuffer() {
-    size_t remaining = buffer_len_ - buffer_pos_;
-    if (remaining > 0) {
-      ESP_LOGD(TAG, "Draining %d remaining bytes from buffer", remaining);
-      buffer_pos_ = buffer_len_; // Mark buffer as empty
-    }
-    
-    // Also drain any remaining data from underlying stream
-    static constexpr int DRAIN_LIMIT = 200;
-    int drained = 0;
-    while (stream_.available() && drained < DRAIN_LIMIT) {
-      int byte = stream_.read();
-      if (byte == -1) break;
-      drained++;
-    }
-    if (drained > 0) {
-      ESP_LOGD(TAG, "Drained %d bytes from underlying stream", drained);
-    }
-  }
-  
- private:
-  bool fillBuffer() {
-    if (buffer_.empty()) {
-      // No buffer available, can't fill
-      return false;
-    }
-    
-    buffer_pos_ = 0;
-    buffer_len_ = 0;
-    
-    // Read data into buffer, but don't over-read to avoid SSL state issues
-    size_t available = stream_.available();
-    if (available == 0) {
-      return false; // No data to read
-    }
-    
-    // More efficient reading - read in chunks when possible
-    size_t read_limit = std::min(buffer_.size(), available);
-    
-    // Try to read data efficiently
-    size_t bytes_to_read = std::min(read_limit, buffer_.size());
-    
-    for (size_t i = 0; i < bytes_to_read; i++) {
-      int byte = stream_.read();
-      if (byte == -1) break;
-      buffer_[buffer_len_++] = static_cast<uint8_t>(byte);
-    }
-    
-    if (buffer_len_ > 0) {
-      #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
-      ESP_LOGVV(TAG, "Filled buffer with %zu bytes (available: %zu)", buffer_len_, available);
-      #endif
-      return true;
-    }
-    
-    return false;
-  }
-  
-  Stream& stream_;
-  size_t bytes_read_;
-  std::vector<uint8_t> buffer_;
-  size_t buffer_pos_;  // Current position in buffer
-  size_t buffer_len_;  // Amount of data in buffer
-};
-
 class CWATownForecast : public PollingComponent {
  public:
   float get_setup_priority() const override;
@@ -957,21 +755,6 @@ class CWATownForecast : public PollingComponent {
   }
 
   template <typename V>
-  void set_watchdog_timeout(V watchdog_timeout) {
-    watchdog_timeout_ = watchdog_timeout;
-  }
-
-  template <typename V>
-  void set_http_connect_timeout(V http_connect_timeout) {
-    http_connect_timeout_ = http_connect_timeout;
-  }
-
-  template <typename V>
-  void set_http_timeout(V http_timeout) {
-    http_timeout_ = http_timeout;
-  }
-
-  template <typename V>
   void set_retry_count(V retry_count) {
     retry_count_ = retry_count;
   }
@@ -981,7 +764,7 @@ class CWATownForecast : public PollingComponent {
     retry_delay_ = retry_delay;
   }
 
-  void clear_data() { record_.weather_elements.clear(); }
+  void clear_data() { record_.release_data(); }
 
   Record &get_data();
 
@@ -1016,19 +799,20 @@ class CWATownForecast : public PollingComponent {
   void set_uv_exposure_level_text_sensor(text_sensor::TextSensor *sensor) { uv_exposure_level_ = sensor; }
   Trigger<Record &> *get_on_data_change_trigger() { return &this->on_data_change_trigger_; }
   Trigger<> *get_on_error_trigger() { return &this->on_error_trigger_; }
+  void set_http_request(http_request::HttpRequestComponent *http_request) { http_request_ = http_request; }
 
  protected:
   // Memory management helper methods
   MinimalCheckpoint create_minimal_checkpoint(const Record& record);
   void restore_from_checkpoint(Record& record, const MinimalCheckpoint& checkpoint);
-  bool parse_to_record(Stream &stream, Record& record, uint64_t &hash_code);
-  
+  bool parse_to_record(HttpStreamAdapter &stream, Record& record, uint64_t &hash_code);
+
   // Advanced memory management methods
-  bool process_response_with_adaptive_strategy(Stream &stream, uint64_t &hash_code);
-  bool process_with_psram_dual_buffer(Stream &stream, Record& record, uint64_t &hash_code);
-  bool process_with_internal_checkpoint(Stream &stream, Record& record, uint64_t &hash_code);
-  bool process_with_adaptive_fragment(Stream &stream, Record& record, uint64_t &hash_code);
-  bool process_with_stream_minimal(Stream &stream, Record& record, uint64_t &hash_code);
+  bool process_response_with_adaptive_strategy(HttpStreamAdapter &stream, uint64_t &hash_code);
+  bool process_with_psram_dual_buffer(HttpStreamAdapter &stream, Record& record, uint64_t &hash_code);
+  bool process_with_internal_checkpoint(HttpStreamAdapter &stream, Record& record, uint64_t &hash_code);
+  bool process_with_adaptive_fragment(HttpStreamAdapter &stream, Record& record, uint64_t &hash_code);
+  bool process_with_stream_minimal(HttpStreamAdapter &stream, Record& record, uint64_t &hash_code);
   
   TemplatableValue<std::string> api_key_;
   TemplatableValue<std::string> city_name_;
@@ -1040,12 +824,10 @@ class CWATownForecast : public PollingComponent {
   TemplatableValue<bool> fallback_to_first_element_;
   TemplatableValue<bool> retain_fetched_data_;
   TemplatableValue<uint32_t> sensor_expiry_;
-  TemplatableValue<uint32_t> watchdog_timeout_;
-  TemplatableValue<uint32_t> http_connect_timeout_;
-  TemplatableValue<uint32_t> http_timeout_;
   TemplatableValue<uint32_t> retry_count_;
   TemplatableValue<uint32_t> retry_delay_;
   time::RealTimeClock *rtc_{nullptr};
+  http_request::HttpRequestComponent *http_request_{nullptr};
 
   text_sensor::TextSensor *city_sensor_{nullptr};
   text_sensor::TextSensor *town_sensor_{nullptr};
@@ -1085,11 +867,12 @@ class CWATownForecast : public PollingComponent {
   uint64_t last_hash_code_{0};
   Record record_;
   time_t sensor_expiration_time_{};
+  bool retry_in_progress_{false};
 
   bool send_request_();
-  bool send_request_with_retry_();
+  void try_send_request_(uint32_t attempt);
   bool validate_config_();
-  bool process_response_(Stream &stream, uint64_t &hash_code);
+  bool process_response_(HttpStreamAdapter &stream, uint64_t &hash_code);
   bool check_changes(uint64_t new_hash_code);
   void publish_states_();
   void publish_sensor_state_(sensor::Sensor *sensor, ElementValueKey key, std::tm &target_tm, bool fallback_to_first);
