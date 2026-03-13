@@ -467,7 +467,22 @@ bool CWATownForecast::parse_to_record(HttpStreamAdapter &stream, Record& record,
   sun.setPosition(record.latitude, record.longitude, timezone_offset);
   ESP_LOGD(TAG, "Sunset Latitude: %f, Longitude: %f, Offset: %d", record.latitude, record.longitude, timezone_offset);
 
+#ifdef USE_PSRAM
+  // PSRAM-aware allocator for ArduinoJson to offload JSON parsing buffers from internal RAM
+  struct SpiRamJsonAllocator : ArduinoJson::Allocator {
+    void* allocate(size_t size) override {
+      return heap_caps_malloc(size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    }
+    void deallocate(void* ptr) override { heap_caps_free(ptr); }
+    void* reallocate(void* ptr, size_t new_size) override {
+      return heap_caps_realloc(ptr, new_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    }
+  };
+  SpiRamJsonAllocator psram_json_allocator;
+  ArduinoJson::JsonDocument time_obj(CWA_PSRAM_AVAILABLE() ? &psram_json_allocator : nullptr);
+#else
   ArduinoJson::JsonDocument time_obj;
+#endif
   bool has_valid_data = false;  // Track if we have at least one element with valid data
   do {
     App.feed_wdt();
@@ -656,10 +671,8 @@ bool CWATownForecast::parse_to_record(HttpStreamAdapter &stream, Record& record,
 
   // Calculate hash code for change detection
   uint64_t new_hash = 0;
-  std::hash<std::string> str_hasher;
   const uint64_t salt = 0x9e3779b97f4a7c15ULL;
-  auto combine_str = [&](const std::string &s) {
-    uint64_t h = str_hasher(s);
+  auto combine_hash = [&](uint64_t h) {
     new_hash ^= h + salt + (new_hash << 6) + (new_hash >> 2);
   };
   auto combine_int = [&](uint64_t v) {
@@ -667,12 +680,21 @@ bool CWATownForecast::parse_to_record(HttpStreamAdapter &stream, Record& record,
     v ^= v >> 33;
     v *= 0xff51afd7ed558ccdULL;
     v ^= v >> 33;
-    new_hash ^= v + salt + (new_hash << 6) + (new_hash >> 2);
+    combine_hash(v);
   };
-  combine_str(record.locations_name);
-  combine_str(record.location_name);
+  // Hash raw char data directly — avoids temporary std::string allocation
+  auto combine_chars = [&](const char* data, size_t len) {
+    uint64_t h = 0xcbf29ce484222325ULL;  // FNV-1a offset basis
+    for (size_t i = 0; i < len; ++i) {
+      h ^= static_cast<uint64_t>(static_cast<unsigned char>(data[i]));
+      h *= 0x100000001b3ULL;  // FNV-1a prime
+    }
+    combine_hash(h);
+  };
+  combine_chars(record.locations_name.c_str(), record.locations_name.size());
+  combine_chars(record.location_name.c_str(), record.location_name.size());
   for (const auto &we : record.weather_elements) {
-    combine_str(we.element_name);
+    combine_chars(we.element_name.c_str(), we.element_name.size());
     for (const auto &ts : we.times) {
       if (ts.data_time.is_valid()) {
         std::tm tm_copy = ts.data_time.to_tm();
@@ -686,7 +708,7 @@ bool CWATownForecast::parse_to_record(HttpStreamAdapter &stream, Record& record,
 
       for (const auto &p : ts.element_values) {
         combine_int(static_cast<uint64_t>(p.first));
-        combine_str(p.second.to_std_string());
+        combine_chars(p.second.c_str(), p.second.size());
       }
     }
   }
