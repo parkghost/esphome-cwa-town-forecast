@@ -140,10 +140,6 @@ bool CWATownForecast::validate_config_() {
     }
   }
 
-  if (sensor_expiry_.value() < 0) {
-    ESP_LOGE(TAG, "Sensor Expiry must be greater or equal to 0");
-    valid = false;
-  }
   return valid;
 }
 
@@ -382,33 +378,6 @@ static bool parse_iso8601(const std::string &s, std::tm &tm) {
   return true;
 }
 
-// Memory management helper methods
-MinimalCheckpoint CWATownForecast::create_minimal_checkpoint(const Record& record) {
-  MinimalCheckpoint checkpoint;
-  checkpoint.locations_name = record.locations_name;
-  checkpoint.location_name = record.location_name;
-  checkpoint.latitude = record.latitude;
-  checkpoint.longitude = record.longitude;
-  checkpoint.mode = record.mode;
-  checkpoint.element_count = record.weather_elements.size();
-  checkpoint.valid = true;
-  return checkpoint;
-}
-
-void CWATownForecast::restore_from_checkpoint(Record& record, const MinimalCheckpoint& checkpoint) {
-  if (checkpoint.valid) {
-    record.locations_name = checkpoint.locations_name;
-    record.location_name = checkpoint.location_name;
-    record.latitude = checkpoint.latitude;
-    record.longitude = checkpoint.longitude;
-    record.mode = checkpoint.mode;
-    record.release_data();
-    if (checkpoint.element_count > 0) {
-      record.weather_elements.reserve(checkpoint.element_count);
-    }
-  }
-}
-
 bool CWATownForecast::parse_to_record(HttpStreamAdapter &stream, Record& record, uint64_t &hash_code) {
   if (!stream.find("\"success\":")) {
     ESP_LOGE(TAG, "Could not find success field");
@@ -465,16 +434,16 @@ bool CWATownForecast::parse_to_record(HttpStreamAdapter &stream, Record& record,
   SunSet sun;
   double timezone_offset = static_cast<double>(now.timezone_offset()) / 3600;
   sun.setPosition(record.latitude, record.longitude, timezone_offset);
-  ESP_LOGD(TAG, "Sunset Latitude: %f, Longitude: %f, Offset: %d", record.latitude, record.longitude, timezone_offset);
+  ESP_LOGD(TAG, "Sunset Latitude: %f, Longitude: %f, Offset: %.0f", record.latitude, record.longitude, timezone_offset);
 
 #ifdef USE_PSRAM
   // PSRAM-aware allocator for ArduinoJson to offload JSON parsing buffers from internal RAM
   struct SpiRamJsonAllocator : ArduinoJson::Allocator {
-    void* allocate(size_t size) override {
+    void *allocate(size_t size) override {
       return heap_caps_malloc(size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     }
-    void deallocate(void* ptr) override { heap_caps_free(ptr); }
-    void* reallocate(void* ptr, size_t new_size) override {
+    void deallocate(void *ptr) override { heap_caps_free(ptr); }
+    void *reallocate(void *ptr, size_t new_size) override {
       return heap_caps_realloc(ptr, new_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     }
   };
@@ -613,8 +582,8 @@ bool CWATownForecast::parse_to_record(HttpStreamAdapter &stream, Record& record,
             ESP_LOGW(TAG, "Unknown element value key: %s", kv.key().c_str());
           }
         }
-        we.times.push_back(std::move(ts));
       }
+      we.times.push_back(std::move(ts));
     } while (stream.findUntil(",", "]"));
     record.weather_elements.push_back(std::move(we));
   } while (stream.findUntil(",", "]"));
@@ -718,182 +687,41 @@ bool CWATownForecast::parse_to_record(HttpStreamAdapter &stream, Record& record,
 }
 
 // Processes the HTTP response and parses forecast data.
+// Two strategies: PSRAM devices parse into a PSRAM-allocated temp record for
+// atomicity; non-PSRAM devices clear existing data, parse in place, and
+// discard partial results on failure.
 bool CWATownForecast::process_response_(HttpStreamAdapter &stream, uint64_t &hash_code) {
-  // Use adaptive memory management strategy
-  return process_response_with_adaptive_strategy(stream, hash_code);
-}
-
-// AdaptiveMemoryManager Implementation
-MemoryStats AdaptiveMemoryManager::get_current_stats() {
-  MemoryStats stats;
-  stats.free_heap = esp_get_free_heap_size();
-  stats.max_block = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
-  stats.total_heap = heap_caps_get_total_size(MALLOC_CAP_8BIT);
-  stats.has_psram = CWA_PSRAM_AVAILABLE();
-  
-  if (stats.has_psram) {
-    stats.psram_free = heap_caps_get_free_size(MALLOC_CAP_SPIRAM);
-    stats.psram_total = heap_caps_get_total_size(MALLOC_CAP_SPIRAM);
-  }
-  
-  // Calculate fragmentation ratio
-  if (stats.free_heap > 0) {
-    stats.fragmentation_ratio = 1.0f - (static_cast<float>(stats.max_block) / static_cast<float>(stats.free_heap));
-  }
-  
-  return stats;
-}
-
-MemoryStrategy AdaptiveMemoryManager::select_optimal_strategy(const MemoryStats& stats) {
-  // Strategy 1: PSRAM available - use dual buffer
-  if (stats.has_psram && stats.psram_free > 50000) {
-    return MemoryStrategy::PSRAM_DUAL_BUFFER;
-  }
-
-  // Strategy 2: Sufficient internal memory - use checkpoint
-  if (is_memory_sufficient_for_temp_record(stats)) {
-    return MemoryStrategy::INTERNAL_CHECKPOINT;
-  }
-
-  // Strategy 3: High fragmentation - use adaptive approach
-  if (stats.fragmentation_ratio > MAX_FRAGMENTATION_RATIO) {
-    return MemoryStrategy::ADAPTIVE_FRAGMENT;
-  }
-
-  // Strategy 4: Low memory fallback - minimal streaming
-  return MemoryStrategy::STREAM_MINIMAL;
-}
-
-void AdaptiveMemoryManager::log_memory_decision(MemoryStrategy strategy, const MemoryStats& stats) {
-  const char* strategy_names[] = {"PSRAM_DUAL_BUFFER", "INTERNAL_CHECKPOINT", "ADAPTIVE_FRAGMENT", "STREAM_MINIMAL"};
-  ESP_LOGD(TAG, "Memory strategy: %s", strategy_names[static_cast<int>(strategy)]);
-  ESP_LOGD(TAG, "  Free heap: %d bytes, Max block: %d bytes, Fragmentation: %.2f%%", 
-           stats.free_heap, stats.max_block, stats.fragmentation_ratio * 100.0f);
-  if (stats.has_psram) {
-    ESP_LOGD(TAG, "  PSRAM available: %d bytes free / %d bytes total", stats.psram_free, stats.psram_total);
-  }
-}
-
-bool AdaptiveMemoryManager::should_use_psram_allocation(const MemoryStats& stats) {
-  return stats.has_psram && stats.psram_free > 50000;
-}
-
-bool AdaptiveMemoryManager::is_memory_sufficient_for_temp_record(const MemoryStats& stats) {
-  return stats.free_heap > MIN_HEAP_FOR_TEMP_RECORD && stats.max_block > MIN_BLOCK_FOR_TEMP_RECORD;
-}
-
-bool CWATownForecast::process_response_with_adaptive_strategy(HttpStreamAdapter &stream, uint64_t &hash_code) {
-  auto stats = AdaptiveMemoryManager::get_current_stats();
-  auto strategy = AdaptiveMemoryManager::select_optimal_strategy(stats);
-  AdaptiveMemoryManager::log_memory_decision(strategy, stats);
-  
-  switch (strategy) {
-    case MemoryStrategy::PSRAM_DUAL_BUFFER:
-      return process_with_psram_dual_buffer(stream, this->record_, hash_code);
-    case MemoryStrategy::INTERNAL_CHECKPOINT:
-      return process_with_internal_checkpoint(stream, this->record_, hash_code);
-    case MemoryStrategy::ADAPTIVE_FRAGMENT:
-      return process_with_adaptive_fragment(stream, this->record_, hash_code);
-    case MemoryStrategy::STREAM_MINIMAL:
-      return process_with_stream_minimal(stream, this->record_, hash_code);
-    default:
-      ESP_LOGE(TAG, "Unknown memory strategy");
-      return false;
-  }
-}
-
-bool CWATownForecast::process_with_psram_dual_buffer(HttpStreamAdapter &stream, Record& record, uint64_t &hash_code) {
-  ESP_LOGD(TAG, "Using PSRAM dual buffer strategy");
-  
-  Record* temp_record = (Record*)heap_caps_malloc(sizeof(Record), MALLOC_CAP_SPIRAM);
-  if (!temp_record) {
-    ESP_LOGE(TAG, "Failed to allocate temp_record in PSRAM, falling back to internal RAM");
-    return process_with_internal_checkpoint(stream, record, hash_code);
-  }
-  
-  // Use placement new to construct Record in PSRAM
-  new(temp_record) Record();
-  
-  bool parse_success = parse_to_record(stream, *temp_record, hash_code);
-  if (parse_success) {
-    record = std::move(*temp_record);
-  }
-  
-  // Clean up regardless of success/failure
-  temp_record->~Record();
-  heap_caps_free(temp_record);
-  
-  if (!parse_success) {
-    return false;
-  }
-  
-  ESP_LOGD(TAG, "PSRAM dual buffer strategy completed successfully");
-  return true;
-}
-
-bool CWATownForecast::process_with_internal_checkpoint(HttpStreamAdapter &stream, Record& record, uint64_t &hash_code) {
-  ESP_LOGD(TAG, "Using internal RAM checkpoint strategy");
-
-  auto checkpoint = create_minimal_checkpoint(record);
-  record.release_data();
-  
-  if (!parse_to_record(stream, record, hash_code)) {
-    ESP_LOGW(TAG, "Parse failed, restoring from checkpoint");
-    restore_from_checkpoint(record, checkpoint);
-    return false;
-  }
-  
-  ESP_LOGD(TAG, "Internal RAM checkpoint strategy completed successfully");
-  return true;
-}
-
-bool CWATownForecast::process_with_adaptive_fragment(HttpStreamAdapter &stream, Record& record, uint64_t &hash_code) {
-  ESP_LOGD(TAG, "Using adaptive fragmentation strategy");
-  
-  // Try PSRAM first if available
-  auto stats = AdaptiveMemoryManager::get_current_stats();
-  if (stats.has_psram && stats.psram_free > 30000) {
-    ESP_LOGD(TAG, "Adaptive strategy: Using PSRAM");
-    return process_with_psram_dual_buffer(stream, record, hash_code);
-  }
-  
-  // Check if we have enough contiguous memory for temp record
-  if (stats.max_block > 25000) {
-    ESP_LOGD(TAG, "Adaptive strategy: Using temp record approach");
-    Record temp_record;
-    if (!parse_to_record(stream, temp_record, hash_code)) {
-      return false;
+  if (CWA_PSRAM_AVAILABLE()) {
+    ESP_LOGD(TAG, "Using PSRAM buffer strategy");
+    Record *temp = static_cast<Record *>(heap_caps_malloc(sizeof(Record), MALLOC_CAP_SPIRAM));
+    if (temp) {
+      new (temp) Record();
+      bool ok = parse_to_record(stream, *temp, hash_code);
+      if (ok) {
+        this->record_ = std::move(*temp);
+      }
+      temp->~Record();
+      heap_caps_free(temp);
+      return ok;
     }
-    record = std::move(temp_record);
-    ESP_LOGD(TAG, "Adaptive fragmentation strategy completed successfully");
-    return true;
+    ESP_LOGW(TAG, "PSRAM allocation failed, falling back to in-place strategy");
   }
-  
-  // Fall back to checkpoint strategy
-  ESP_LOGD(TAG, "Adaptive strategy: Falling back to checkpoint");
-  return process_with_internal_checkpoint(stream, record, hash_code);
-}
 
-bool CWATownForecast::process_with_stream_minimal(HttpStreamAdapter &stream, Record& record, uint64_t &hash_code) {
-  ESP_LOGD(TAG, "Using stream minimal strategy");
+  ESP_LOGD(TAG, "Using in-place parse strategy");
+  this->record_.release_data();
 
-  // Clear old data and free vector buffers to maximize contiguous heap
-  record.release_data();
-  
-  // Use minimal memory parsing directly into record
-  if (!parse_to_record(stream, record, hash_code)) {
-    ESP_LOGW(TAG, "Stream minimal parse failed");
+  if (!parse_to_record(stream, this->record_, hash_code)) {
+    ESP_LOGW(TAG, "Parse failed, clearing record");
+    this->record_.release_data();
     return false;
   }
-  
-  ESP_LOGD(TAG, "Stream minimal strategy completed successfully");
   return true;
 }
 
 // Returns the latest forecast data record.
 Record &CWATownForecast::get_data() {
   if (!this->retain_fetched_data_.value()) {
-    ESP_LOGE(TAG, "Trun on retain_fetched_data option to get forecast data");
+    ESP_LOGE(TAG, "Turn on retain_fetched_data option to get forecast data");
   }
   return record_;
 }

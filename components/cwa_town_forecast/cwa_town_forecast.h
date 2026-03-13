@@ -39,7 +39,7 @@
 namespace esphome {
 
 // Add missing operator== for RAMAllocator to support std::vector move operations
-template<class T> 
+template<class T>
 bool operator==(const RAMAllocator<T>& lhs, const RAMAllocator<T>& rhs) {
   return true;  // RAMAllocators are always equal for std::vector purposes
 }
@@ -55,52 +55,6 @@ enum Mode {
   SEVEN_DAYS,
 };
 
-// Memory management structures for transaction safety
-struct MinimalCheckpoint {
-  std::string locations_name;
-  std::string location_name;
-  double latitude;
-  double longitude;
-  Mode mode;
-  size_t element_count;
-  bool valid = false;
-  
-  MinimalCheckpoint() : latitude(NAN), longitude(NAN), mode(Mode::THREE_DAYS), element_count(0) {}
-};
-
-// Advanced Memory Management
-enum class MemoryStrategy {
-  PSRAM_DUAL_BUFFER,      // Use PSRAM for dual buffering
-  INTERNAL_CHECKPOINT,    // Use internal RAM with minimal checkpoint
-  ADAPTIVE_FRAGMENT,      // Adaptive strategy based on fragmentation
-  STREAM_MINIMAL          // Ultra-minimal streaming approach
-};
-
-struct MemoryStats {
-  size_t free_heap;
-  size_t max_block;
-  size_t total_heap;
-  size_t psram_free;
-  size_t psram_total;
-  float fragmentation_ratio;
-  bool has_psram;
-  
-  MemoryStats() : free_heap(0), max_block(0), total_heap(0), 
-                  psram_free(0), psram_total(0), fragmentation_ratio(0.0f), has_psram(false) {}
-};
-
-class AdaptiveMemoryManager {
-public:
-  static constexpr size_t MIN_HEAP_FOR_TEMP_RECORD = 45000;  // Minimum heap for temp record strategy
-  static constexpr size_t MIN_BLOCK_FOR_TEMP_RECORD = 20000; // Minimum block for temp record strategy
-  static constexpr float MAX_FRAGMENTATION_RATIO = 0.7f;      // Maximum fragmentation before switching strategy
-  
-  static MemoryStats get_current_stats();
-  static MemoryStrategy select_optimal_strategy(const MemoryStats& stats);
-  static void log_memory_decision(MemoryStrategy strategy, const MemoryStats& stats);
-  static bool should_use_psram_allocation(const MemoryStats& stats);
-  static bool is_memory_sufficient_for_temp_record(const MemoryStats& stats);
-};
 
 static inline std::string mode_to_string(Mode mode) {
   switch (mode) {
@@ -815,18 +769,8 @@ class CWATownForecast : public PollingComponent {
   void set_http_request(http_request::HttpRequestComponent *http_request) { http_request_ = http_request; }
 
  protected:
-  // Memory management helper methods
-  MinimalCheckpoint create_minimal_checkpoint(const Record& record);
-  void restore_from_checkpoint(Record& record, const MinimalCheckpoint& checkpoint);
   bool parse_to_record(HttpStreamAdapter &stream, Record& record, uint64_t &hash_code);
 
-  // Advanced memory management methods
-  bool process_response_with_adaptive_strategy(HttpStreamAdapter &stream, uint64_t &hash_code);
-  bool process_with_psram_dual_buffer(HttpStreamAdapter &stream, Record& record, uint64_t &hash_code);
-  bool process_with_internal_checkpoint(HttpStreamAdapter &stream, Record& record, uint64_t &hash_code);
-  bool process_with_adaptive_fragment(HttpStreamAdapter &stream, Record& record, uint64_t &hash_code);
-  bool process_with_stream_minimal(HttpStreamAdapter &stream, Record& record, uint64_t &hash_code);
-  
   TemplatableValue<std::string> api_key_;
   TemplatableValue<std::string> city_name_;
   TemplatableValue<std::string> town_name_;
