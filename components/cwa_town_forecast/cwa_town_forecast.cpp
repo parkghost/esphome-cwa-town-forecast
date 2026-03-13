@@ -15,7 +15,6 @@
 #include <cstring>
 #include <ctime>
 #include <functional>
-#include <set>
 
 #include "esphome/components/network/util.h"
 #include "esphome/components/text_sensor/text_sensor.h"
@@ -98,9 +97,18 @@ bool CWATownForecast::validate_config_() {
     ESP_LOGE(TAG, "City name not set");
     valid = false;
   }
-  if (CITY_NAMES.find(city_name_.value()) == CITY_NAMES.end()) {
-    ESP_LOGE(TAG, "Invalid city name: %s", city_name_.value().c_str());
-    valid = false;
+  {
+    bool city_found = false;
+    for (size_t i = 0; i < CITY_NAME_TO_3D_RESOURCE_ID_MAP_SIZE; ++i) {
+      if (city_name_.value() == CITY_NAME_TO_3D_RESOURCE_ID_MAP[i].city) {
+        city_found = true;
+        break;
+      }
+    }
+    if (!city_found) {
+      ESP_LOGE(TAG, "Invalid city name: %s", city_name_.value().c_str());
+      valid = false;
+    }
   }
   if (town_name_.value().empty()) {
     ESP_LOGE(TAG, "Town name not set");
@@ -108,14 +116,24 @@ bool CWATownForecast::validate_config_() {
   }
   if (!this->weather_elements_.empty()) {
     Mode mode = this->mode_;
-    const std::set<std::string> *valid_names;
+    const char* const* valid_names;
+    size_t valid_names_size;
     if (mode == Mode::THREE_DAYS) {
-      valid_names = &WEATHER_ELEMENT_NAMES_3DAYS;
+      valid_names = WEATHER_ELEMENT_NAMES_3DAYS;
+      valid_names_size = WEATHER_ELEMENT_NAMES_3DAYS_SIZE;
     } else {
-      valid_names = &WEATHER_ELEMENT_NAMES_7DAYS;
+      valid_names = WEATHER_ELEMENT_NAMES_7DAYS;
+      valid_names_size = WEATHER_ELEMENT_NAMES_7DAYS_SIZE;
     }
     for (const auto &element_name : this->weather_elements_) {
-      if (valid_names->find(element_name) == valid_names->end()) {
+      bool found = false;
+      for (size_t i = 0; i < valid_names_size; ++i) {
+        if (element_name == valid_names[i]) {
+          found = true;
+          break;
+        }
+      }
+      if (!found) {
         ESP_LOGE(TAG, "Invalid weather element for mode %s: %s", mode_to_string(mode).c_str(), element_name.c_str());
         valid = false;
       }
@@ -403,7 +421,7 @@ bool CWATownForecast::parse_to_record(HttpStreamAdapter &stream, Record& record,
   }
   
   record.mode = this->mode_;
-  record.weather_elements.reserve(this->mode_ == Mode::THREE_DAYS ? WEATHER_ELEMENT_NAMES_3DAYS.size() : WEATHER_ELEMENT_NAMES_7DAYS.size());
+  record.weather_elements.reserve(this->mode_ == Mode::THREE_DAYS ? WEATHER_ELEMENT_NAMES_3DAYS_SIZE : WEATHER_ELEMENT_NAMES_7DAYS_SIZE);
   
   if (!stream.find("\"LocationsName\":\"")) {
     ESP_LOGE(TAG, "Could not find LocationsName");
@@ -874,32 +892,23 @@ void CWATownForecast::publish_state_common_(SensorT *sensor, ElementValueKey key
   if (!sensor) return;  // Skip if sensor is null
 
   // Find the corresponding element name for this key in the current mode
-  auto mode_it = MODE_ELEMENT_NAME_MAP.find(this->record_.mode);
-  if (mode_it == MODE_ELEMENT_NAME_MAP.end()) {
-    ESP_LOGE(TAG, "Invalid mode: %s", mode_to_string(this->mode_).c_str());
+  const char* element_name = find_mode_element_name(this->record_.mode, key);
+  if (!element_name) {
+    ESP_LOGE(TAG, "Invalid element value key for mode %s: %s",
+             mode_to_string(this->record_.mode).c_str(), element_value_key_to_string(key).c_str());
     publish_no_match(sensor);
     return;
   }
 
-  const auto &elem_map = mode_it->second;
-  auto name_it = elem_map.find(key);
-  if (name_it == elem_map.end()) {
-    ESP_LOGE(TAG, "Invalid element value key: %s", element_value_key_to_string(key).c_str());
-    publish_no_match(sensor);
-    return;
-  }
-
-  // Get the element name and find the corresponding weather element
-  std::string element_name = name_it->second;
   const WeatherElement *we = this->record_.find_weather_element(element_name);
   if (we && !we->times.empty()) {
     Time *ts = we->match_time(target_tm, key, fallback_to_first);
     if (ts) {
 #if ESP_LOG_LEVEL >= ESP_LOG_VERBOSE
       if (ts->data_time.is_valid())
-        ESP_LOGV(TAG, "matched (%s): %s", element_name.c_str(), tm_to_esptime(ts->data_time.to_tm()).strftime("%Y-%m-%d %H:%M").c_str());
+        ESP_LOGV(TAG, "matched (%s): %s", element_name, tm_to_esptime(ts->data_time.to_tm()).strftime("%Y-%m-%d %H:%M").c_str());
       else if (ts->start_time_data.is_valid() && ts->end_time_data.is_valid())
-        ESP_LOGV(TAG, "matched (%s): %s - %s", element_name.c_str(), tm_to_esptime(ts->start_time_data.to_tm()).strftime("%Y-%m-%d %H:%M").c_str(),
+        ESP_LOGV(TAG, "matched (%s): %s - %s", element_name, tm_to_esptime(ts->start_time_data.to_tm()).strftime("%Y-%m-%d %H:%M").c_str(),
                  tm_to_esptime(ts->end_time_data.to_tm()).strftime("%Y-%m-%d %H:%M").c_str());
 #endif
       auto val = ts->find_element_value(key);
@@ -911,10 +920,10 @@ void CWATownForecast::publish_state_common_(SensorT *sensor, ElementValueKey key
         return;
       }
     }
-    ESP_LOGW(TAG, "No match found for %s", element_name.c_str());
+    ESP_LOGW(TAG, "No match found for %s", element_name);
     publish_no_match(sensor);
   } else {
-    ESP_LOGW(TAG, "No weather element found for %s", element_name.c_str());
+    ESP_LOGW(TAG, "No weather element found for %s", element_name);
     publish_no_match(sensor);
   }
 }

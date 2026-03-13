@@ -7,7 +7,6 @@
 #include <set>
 #include <string>
 #include <string_view>
-#include <unordered_map>
 #include <vector>
 
 #include "esphome.h"
@@ -47,7 +46,7 @@ bool operator==(const RAMAllocator<T>& lhs, const RAMAllocator<T>& rhs) {
 
 namespace cwa_town_forecast {
 
-static const char *const TAG = "cwa_town_forecast";
+static constexpr const char *const TAG = "cwa_town_forecast";
 
 static constexpr int UV_LOOKAHEAD_MINUTES = 90;
 
@@ -133,37 +132,31 @@ static inline std::string early_data_clear_to_string(EarlyDataClear mode) {
   }
 }
 
-// Mapping of city names to their corresponding resource IDs
-static const std::set<std::string> CITY_NAMES = {
-    "宜蘭縣", "桃園市", "新竹縣", "苗栗縣", "彰化縣", "南投縣", "雲林縣", "嘉義縣", "屏東縣", "臺東縣", "花蓮縣",
-    "澎湖縣", "基隆市", "新竹市", "嘉義市", "臺北市", "高雄市", "新北市", "臺中市", "臺南市", "連江縣", "金門縣",
-};
-
-static const char *const WEATHER_ELEMENT_NAME_TEMPERATURE = "溫度";
-static const char *const WEATHER_ELEMENT_NAME_DEW_POINT = "露點溫度";
-static const char *const WEATHER_ELEMENT_NAME_APPARENT_TEMPERATURE = "體感溫度";
-static const char *const WEATHER_ELEMENT_NAME_COMFORT_INDEX = "舒適度指數";
-static const char *const WEATHER_ELEMENT_NAME_WEATHER = "天氣現象";
-static const char *const WEATHER_ELEMENT_NAME_WEATHER_DESCRIPTION = "天氣預報綜合描述";
-static const char *const WEATHER_ELEMENT_NAME_3H_PROBABILITY_OF_PRECIPITATION = "3小時降雨機率";
-static const char *const WEATHER_ELEMENT_NAME_RELATIVE_HUMIDITY = "相對濕度";
-static const char *const WEATHER_ELEMENT_NAME_WIND_DIRECTION = "風向";
-static const char *const WEATHER_ELEMENT_NAME_WIND_SPEED = "風速";
+static constexpr const char *const WEATHER_ELEMENT_NAME_TEMPERATURE = "溫度";
+static constexpr const char *const WEATHER_ELEMENT_NAME_DEW_POINT = "露點溫度";
+static constexpr const char *const WEATHER_ELEMENT_NAME_APPARENT_TEMPERATURE = "體感溫度";
+static constexpr const char *const WEATHER_ELEMENT_NAME_COMFORT_INDEX = "舒適度指數";
+static constexpr const char *const WEATHER_ELEMENT_NAME_WEATHER = "天氣現象";
+static constexpr const char *const WEATHER_ELEMENT_NAME_WEATHER_DESCRIPTION = "天氣預報綜合描述";
+static constexpr const char *const WEATHER_ELEMENT_NAME_3H_PROBABILITY_OF_PRECIPITATION = "3小時降雨機率";
+static constexpr const char *const WEATHER_ELEMENT_NAME_RELATIVE_HUMIDITY = "相對濕度";
+static constexpr const char *const WEATHER_ELEMENT_NAME_WIND_DIRECTION = "風向";
+static constexpr const char *const WEATHER_ELEMENT_NAME_WIND_SPEED = "風速";
 // New element names from 7 days forecast
-static const char *const WEATHER_ELEMENT_NAME_AVG_TEMPERATURE = "平均溫度";
-static const char *const WEATHER_ELEMENT_NAME_MAX_TEMPERATURE = "最高溫度";
-static const char *const WEATHER_ELEMENT_NAME_MIN_TEMPERATURE = "最低溫度";
-static const char *const WEATHER_ELEMENT_NAME_AVG_DEW_POINT = "平均露點溫度";
-static const char *const WEATHER_ELEMENT_NAME_AVG_RELATIVE_HUMIDITY = "平均相對濕度";
-static const char *const WEATHER_ELEMENT_NAME_MAX_APPARENT_TEMPERATURE = "最高體感溫度";
-static const char *const WEATHER_ELEMENT_NAME_MIN_APPARENT_TEMPERATURE = "最低體感溫度";
-static const char *const WEATHER_ELEMENT_NAME_MAX_COMFORT_INDEX = "最大舒適度指數";
-static const char *const WEATHER_ELEMENT_NAME_MIN_COMFORT_INDEX = "最小舒適度指數";
-static const char *const WEATHER_ELEMENT_NAME_12H_PROBABILITY_OF_PRECIPITATION = "12小時降雨機率";
-static const char *const WEATHER_ELEMENT_NAME_UV_INDEX = "紫外線指數";
+static constexpr const char *const WEATHER_ELEMENT_NAME_AVG_TEMPERATURE = "平均溫度";
+static constexpr const char *const WEATHER_ELEMENT_NAME_MAX_TEMPERATURE = "最高溫度";
+static constexpr const char *const WEATHER_ELEMENT_NAME_MIN_TEMPERATURE = "最低溫度";
+static constexpr const char *const WEATHER_ELEMENT_NAME_AVG_DEW_POINT = "平均露點溫度";
+static constexpr const char *const WEATHER_ELEMENT_NAME_AVG_RELATIVE_HUMIDITY = "平均相對濕度";
+static constexpr const char *const WEATHER_ELEMENT_NAME_MAX_APPARENT_TEMPERATURE = "最高體感溫度";
+static constexpr const char *const WEATHER_ELEMENT_NAME_MIN_APPARENT_TEMPERATURE = "最低體感溫度";
+static constexpr const char *const WEATHER_ELEMENT_NAME_MAX_COMFORT_INDEX = "最大舒適度指數";
+static constexpr const char *const WEATHER_ELEMENT_NAME_MIN_COMFORT_INDEX = "最小舒適度指數";
+static constexpr const char *const WEATHER_ELEMENT_NAME_12H_PROBABILITY_OF_PRECIPITATION = "12小時降雨機率";
+static constexpr const char *const WEATHER_ELEMENT_NAME_UV_INDEX = "紫外線指數";
 
-// Set of valid weather element names for 3 days forecasts
-static const std::set<std::string> WEATHER_ELEMENT_NAMES_3DAYS = {
+// Valid weather element names for 3 days forecasts (constexpr flash-resident array)
+static constexpr const char* const WEATHER_ELEMENT_NAMES_3DAYS[] = {
     WEATHER_ELEMENT_NAME_TEMPERATURE,
     WEATHER_ELEMENT_NAME_DEW_POINT,
     WEATHER_ELEMENT_NAME_APPARENT_TEMPERATURE,
@@ -176,8 +169,11 @@ static const std::set<std::string> WEATHER_ELEMENT_NAMES_3DAYS = {
     WEATHER_ELEMENT_NAME_WIND_SPEED,
 };
 
-// Set of valid weather element names for 7 days forecast
-static const std::set<std::string> WEATHER_ELEMENT_NAMES_7DAYS = {
+static constexpr size_t WEATHER_ELEMENT_NAMES_3DAYS_SIZE =
+    sizeof(WEATHER_ELEMENT_NAMES_3DAYS) / sizeof(WEATHER_ELEMENT_NAMES_3DAYS[0]);
+
+// Valid weather element names for 7 days forecast (constexpr flash-resident array)
+static constexpr const char* const WEATHER_ELEMENT_NAMES_7DAYS[] = {
     WEATHER_ELEMENT_NAME_AVG_TEMPERATURE,
     WEATHER_ELEMENT_NAME_MAX_TEMPERATURE,
     WEATHER_ELEMENT_NAME_MIN_TEMPERATURE,
@@ -194,6 +190,9 @@ static const std::set<std::string> WEATHER_ELEMENT_NAMES_7DAYS = {
     WEATHER_ELEMENT_NAME_WIND_SPEED,
     WEATHER_ELEMENT_NAME_UV_INDEX,
 };
+
+static constexpr size_t WEATHER_ELEMENT_NAMES_7DAYS_SIZE =
+    sizeof(WEATHER_ELEMENT_NAMES_7DAYS) / sizeof(WEATHER_ELEMENT_NAMES_7DAYS[0]);
 
 enum class ElementValueKey {
   TEMPERATURE,
@@ -258,50 +257,65 @@ static inline std::string element_value_key_to_string(ElementValueKey key) {
   return std::string();
 }
 
-// Map ElementValueKey to WeatherElementName based on Mode
-static const std::unordered_map<Mode, std::unordered_map<ElementValueKey, std::string>> MODE_ELEMENT_NAME_MAP = {
-    {Mode::THREE_DAYS,
-     {
-         {ElementValueKey::TEMPERATURE, WEATHER_ELEMENT_NAME_TEMPERATURE},
-         {ElementValueKey::DEW_POINT, WEATHER_ELEMENT_NAME_DEW_POINT},
-         {ElementValueKey::APPARENT_TEMPERATURE, WEATHER_ELEMENT_NAME_APPARENT_TEMPERATURE},
-         {ElementValueKey::COMFORT_INDEX, WEATHER_ELEMENT_NAME_COMFORT_INDEX},
-         {ElementValueKey::COMFORT_INDEX_DESCRIPTION, WEATHER_ELEMENT_NAME_COMFORT_INDEX},
-         {ElementValueKey::WEATHER, WEATHER_ELEMENT_NAME_WEATHER},
-         {ElementValueKey::WEATHER_CODE, WEATHER_ELEMENT_NAME_WEATHER},
-         {ElementValueKey::WEATHER_ICON, WEATHER_ELEMENT_NAME_WEATHER},
-         {ElementValueKey::WEATHER_DESCRIPTION, WEATHER_ELEMENT_NAME_WEATHER_DESCRIPTION},
-         {ElementValueKey::PROBABILITY_OF_PRECIPITATION, WEATHER_ELEMENT_NAME_3H_PROBABILITY_OF_PRECIPITATION},
-         {ElementValueKey::RELATIVE_HUMIDITY, WEATHER_ELEMENT_NAME_RELATIVE_HUMIDITY},
-         {ElementValueKey::WIND_DIRECTION, WEATHER_ELEMENT_NAME_WIND_DIRECTION},
-         {ElementValueKey::WIND_SPEED, WEATHER_ELEMENT_NAME_WIND_SPEED},
-         {ElementValueKey::BEAUFORT_SCALE, WEATHER_ELEMENT_NAME_WIND_SPEED},
-     }},
-    {Mode::SEVEN_DAYS,
-     {
-         {ElementValueKey::TEMPERATURE, WEATHER_ELEMENT_NAME_AVG_TEMPERATURE},
-         {ElementValueKey::DEW_POINT, WEATHER_ELEMENT_NAME_AVG_DEW_POINT},
-         {ElementValueKey::RELATIVE_HUMIDITY, WEATHER_ELEMENT_NAME_AVG_RELATIVE_HUMIDITY},
-         {ElementValueKey::MAX_TEMPERATURE, WEATHER_ELEMENT_NAME_MAX_TEMPERATURE},
-         {ElementValueKey::MIN_TEMPERATURE, WEATHER_ELEMENT_NAME_MIN_TEMPERATURE},
-         {ElementValueKey::MAX_APPARENT_TEMPERATURE, WEATHER_ELEMENT_NAME_MAX_APPARENT_TEMPERATURE},
-         {ElementValueKey::MIN_APPARENT_TEMPERATURE, WEATHER_ELEMENT_NAME_MIN_APPARENT_TEMPERATURE},
-         {ElementValueKey::MAX_COMFORT_INDEX, WEATHER_ELEMENT_NAME_MAX_COMFORT_INDEX},
-         {ElementValueKey::MIN_COMFORT_INDEX, WEATHER_ELEMENT_NAME_MIN_COMFORT_INDEX},
-         {ElementValueKey::MIN_COMFORT_INDEX_DESCRIPTION, WEATHER_ELEMENT_NAME_MIN_COMFORT_INDEX},
-         {ElementValueKey::MAX_COMFORT_INDEX_DESCRIPTION, WEATHER_ELEMENT_NAME_MAX_COMFORT_INDEX},
-         {ElementValueKey::PROBABILITY_OF_PRECIPITATION, WEATHER_ELEMENT_NAME_12H_PROBABILITY_OF_PRECIPITATION},
-         {ElementValueKey::UV_INDEX, WEATHER_ELEMENT_NAME_UV_INDEX},
-         {ElementValueKey::WEATHER, WEATHER_ELEMENT_NAME_WEATHER},
-         {ElementValueKey::WEATHER_CODE, WEATHER_ELEMENT_NAME_WEATHER},
-         {ElementValueKey::WEATHER_ICON, WEATHER_ELEMENT_NAME_WEATHER},
-         {ElementValueKey::WEATHER_DESCRIPTION, WEATHER_ELEMENT_NAME_WEATHER_DESCRIPTION},
-         {ElementValueKey::WIND_DIRECTION, WEATHER_ELEMENT_NAME_WIND_DIRECTION},
-         {ElementValueKey::WIND_SPEED, WEATHER_ELEMENT_NAME_WIND_SPEED},
-         {ElementValueKey::BEAUFORT_SCALE, WEATHER_ELEMENT_NAME_WIND_SPEED},
-         {ElementValueKey::UV_EXPOSURE_LEVEL, WEATHER_ELEMENT_NAME_UV_INDEX},
-     }},
+// Map ElementValueKey to WeatherElementName based on Mode (constexpr flat array)
+struct ModeElementMapping {
+  Mode mode;
+  ElementValueKey key;
+  const char* element_name;
 };
+
+static constexpr ModeElementMapping MODE_ELEMENT_MAPPINGS[] = {
+    // --- THREE_DAYS ---
+    {Mode::THREE_DAYS, ElementValueKey::TEMPERATURE, WEATHER_ELEMENT_NAME_TEMPERATURE},
+    {Mode::THREE_DAYS, ElementValueKey::DEW_POINT, WEATHER_ELEMENT_NAME_DEW_POINT},
+    {Mode::THREE_DAYS, ElementValueKey::APPARENT_TEMPERATURE, WEATHER_ELEMENT_NAME_APPARENT_TEMPERATURE},
+    {Mode::THREE_DAYS, ElementValueKey::COMFORT_INDEX, WEATHER_ELEMENT_NAME_COMFORT_INDEX},
+    {Mode::THREE_DAYS, ElementValueKey::COMFORT_INDEX_DESCRIPTION, WEATHER_ELEMENT_NAME_COMFORT_INDEX},
+    {Mode::THREE_DAYS, ElementValueKey::WEATHER, WEATHER_ELEMENT_NAME_WEATHER},
+    {Mode::THREE_DAYS, ElementValueKey::WEATHER_CODE, WEATHER_ELEMENT_NAME_WEATHER},
+    {Mode::THREE_DAYS, ElementValueKey::WEATHER_ICON, WEATHER_ELEMENT_NAME_WEATHER},
+    {Mode::THREE_DAYS, ElementValueKey::WEATHER_DESCRIPTION, WEATHER_ELEMENT_NAME_WEATHER_DESCRIPTION},
+    {Mode::THREE_DAYS, ElementValueKey::PROBABILITY_OF_PRECIPITATION, WEATHER_ELEMENT_NAME_3H_PROBABILITY_OF_PRECIPITATION},
+    {Mode::THREE_DAYS, ElementValueKey::RELATIVE_HUMIDITY, WEATHER_ELEMENT_NAME_RELATIVE_HUMIDITY},
+    {Mode::THREE_DAYS, ElementValueKey::WIND_DIRECTION, WEATHER_ELEMENT_NAME_WIND_DIRECTION},
+    {Mode::THREE_DAYS, ElementValueKey::WIND_SPEED, WEATHER_ELEMENT_NAME_WIND_SPEED},
+    {Mode::THREE_DAYS, ElementValueKey::BEAUFORT_SCALE, WEATHER_ELEMENT_NAME_WIND_SPEED},
+    // --- SEVEN_DAYS ---
+    {Mode::SEVEN_DAYS, ElementValueKey::TEMPERATURE, WEATHER_ELEMENT_NAME_AVG_TEMPERATURE},
+    {Mode::SEVEN_DAYS, ElementValueKey::DEW_POINT, WEATHER_ELEMENT_NAME_AVG_DEW_POINT},
+    {Mode::SEVEN_DAYS, ElementValueKey::RELATIVE_HUMIDITY, WEATHER_ELEMENT_NAME_AVG_RELATIVE_HUMIDITY},
+    {Mode::SEVEN_DAYS, ElementValueKey::MAX_TEMPERATURE, WEATHER_ELEMENT_NAME_MAX_TEMPERATURE},
+    {Mode::SEVEN_DAYS, ElementValueKey::MIN_TEMPERATURE, WEATHER_ELEMENT_NAME_MIN_TEMPERATURE},
+    {Mode::SEVEN_DAYS, ElementValueKey::MAX_APPARENT_TEMPERATURE, WEATHER_ELEMENT_NAME_MAX_APPARENT_TEMPERATURE},
+    {Mode::SEVEN_DAYS, ElementValueKey::MIN_APPARENT_TEMPERATURE, WEATHER_ELEMENT_NAME_MIN_APPARENT_TEMPERATURE},
+    {Mode::SEVEN_DAYS, ElementValueKey::MAX_COMFORT_INDEX, WEATHER_ELEMENT_NAME_MAX_COMFORT_INDEX},
+    {Mode::SEVEN_DAYS, ElementValueKey::MIN_COMFORT_INDEX, WEATHER_ELEMENT_NAME_MIN_COMFORT_INDEX},
+    {Mode::SEVEN_DAYS, ElementValueKey::MIN_COMFORT_INDEX_DESCRIPTION, WEATHER_ELEMENT_NAME_MIN_COMFORT_INDEX},
+    {Mode::SEVEN_DAYS, ElementValueKey::MAX_COMFORT_INDEX_DESCRIPTION, WEATHER_ELEMENT_NAME_MAX_COMFORT_INDEX},
+    {Mode::SEVEN_DAYS, ElementValueKey::PROBABILITY_OF_PRECIPITATION, WEATHER_ELEMENT_NAME_12H_PROBABILITY_OF_PRECIPITATION},
+    {Mode::SEVEN_DAYS, ElementValueKey::UV_INDEX, WEATHER_ELEMENT_NAME_UV_INDEX},
+    {Mode::SEVEN_DAYS, ElementValueKey::WEATHER, WEATHER_ELEMENT_NAME_WEATHER},
+    {Mode::SEVEN_DAYS, ElementValueKey::WEATHER_CODE, WEATHER_ELEMENT_NAME_WEATHER},
+    {Mode::SEVEN_DAYS, ElementValueKey::WEATHER_ICON, WEATHER_ELEMENT_NAME_WEATHER},
+    {Mode::SEVEN_DAYS, ElementValueKey::WEATHER_DESCRIPTION, WEATHER_ELEMENT_NAME_WEATHER_DESCRIPTION},
+    {Mode::SEVEN_DAYS, ElementValueKey::WIND_DIRECTION, WEATHER_ELEMENT_NAME_WIND_DIRECTION},
+    {Mode::SEVEN_DAYS, ElementValueKey::WIND_SPEED, WEATHER_ELEMENT_NAME_WIND_SPEED},
+    {Mode::SEVEN_DAYS, ElementValueKey::BEAUFORT_SCALE, WEATHER_ELEMENT_NAME_WIND_SPEED},
+    {Mode::SEVEN_DAYS, ElementValueKey::UV_EXPOSURE_LEVEL, WEATHER_ELEMENT_NAME_UV_INDEX},
+};
+
+static constexpr size_t MODE_ELEMENT_MAPPINGS_SIZE =
+    sizeof(MODE_ELEMENT_MAPPINGS) / sizeof(MODE_ELEMENT_MAPPINGS[0]);
+
+// Look up element name for a given mode and key
+inline const char* find_mode_element_name(Mode mode, ElementValueKey key) {
+  for (size_t i = 0; i < MODE_ELEMENT_MAPPINGS_SIZE; ++i) {
+    if (MODE_ELEMENT_MAPPINGS[i].mode == mode && MODE_ELEMENT_MAPPINGS[i].key == key) {
+      return MODE_ELEMENT_MAPPINGS[i].element_name;
+    }
+  }
+  return nullptr;
+}
 
 struct WeatherCodeIcon {
   const char* code;
@@ -633,12 +647,9 @@ struct Record {
   }
 
   const WeatherElement *get_weather_element_for_key(ElementValueKey key) const {
-    auto mode_it = MODE_ELEMENT_NAME_MAP.find(this->mode);
-    if (mode_it == MODE_ELEMENT_NAME_MAP.end()) return nullptr;
-    const auto &elem_map = mode_it->second;
-    auto name_it = elem_map.find(key);
-    if (name_it == elem_map.end()) return nullptr;
-    return this->find_weather_element(name_it->second);
+    const char* name = find_mode_element_name(this->mode, key);
+    if (!name) return nullptr;
+    return this->find_weather_element(name);
   }
 
   const std::string find_value(ElementValueKey key, bool fallback_to_first_element, std::tm tm) const {
@@ -725,9 +736,11 @@ class CWATownForecast : public PollingComponent {
     town_name_ = town_name;
   }
 
-  void add_weather_element(const std::string &weather_element) { this->weather_elements_.insert(weather_element); }
+  void add_weather_element(const std::string &weather_element) { this->weather_elements_.push_back(weather_element); }
 
-  void set_weather_elements(const std::set<std::string> &weather_elements) { this->weather_elements_ = weather_elements; }
+  void set_weather_elements(const std::set<std::string> &weather_elements) {
+    weather_elements_.assign(weather_elements.begin(), weather_elements.end());
+  }
 
   template <typename V>
   void set_time_to(V time_to) {
@@ -818,7 +831,7 @@ class CWATownForecast : public PollingComponent {
   TemplatableValue<std::string> city_name_;
   TemplatableValue<std::string> town_name_;
   Mode mode_;
-  std::set<std::string> weather_elements_;
+  std::vector<std::string> weather_elements_;
   TemplatableValue<uint32_t> time_to_;
   TemplatableValue<EarlyDataClear> early_data_clear_;
   TemplatableValue<bool> fallback_to_first_element_;
