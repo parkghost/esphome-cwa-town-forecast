@@ -42,7 +42,7 @@ This external component for ESPHome fetches [town weather forecast](https://www.
 * **api_key** (Required, string, templatable): Your CWA Open Data API key.
 * **city_name** (Required, string, templatable): The name of the city (e.g., "新北市").
 * **town_name** (Required, string, templatable): The name of the [town](https://opendata.cwa.gov.tw/opendatadoc/Opendata_City.pdf) (e.g., "中和區").
-* **mode** (Required, string): Forecast range mode. Default `3-DAYS`. Options:
+* **mode** (Required, string): Forecast range mode. Options:
   * `3-DAYS`: [e.g. 鄉鎮天氣預報-新北市未來3天天氣預報](https://opendata.cwa.gov.tw/dataset/all/F-D0047-069)
   * `7-DAYS`: [e.g. 鄉鎮天氣預報-新北市未來1週天氣預報](https://opendata.cwa.gov.tw/dataset/all/F-D0047-071)
 * **weather_elements** (Optional, list of strings): Forecast elements to fetch. Defaults to all available elements if not set. Limiting the number of `weather_elements` can help reduce memory usage. Options:
@@ -244,8 +244,8 @@ cwa_town_forecast:
 ```cpp
 using namespace cwa_town_forecast;
 
-auto data_3d = id(town_forecast_3d).get_data();
-auto data_7d = id(town_forecast_7d).get_data();
+const auto &data_3d = id(town_forecast_3d).get_data();
+const auto &data_7d = id(town_forecast_7d).get_data();
 bool fallback = true;
 
 auto now = id(esp_time).now();

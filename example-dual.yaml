@@ -377,8 +377,8 @@ script:
             return;
           }
 
-          auto data_3d = id(town_forecast_3d).get_data();
-          auto data_7d = id(town_forecast_7d).get_data();
+          const auto &data_3d = id(town_forecast_3d).get_data();
+          const auto &data_7d = id(town_forecast_7d).get_data();
           bool fallback = true;
 
           auto now = id(esp_time).now();

@@ -50,7 +50,7 @@ time:
     id: esp_time
     timezone: $timezone
     on_time:
-      - cron: "00 /30 * * * *"
+      - cron: "0 /30 * * * *"
         then:
           - script.execute: update_forecast
     on_time_sync:
