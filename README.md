@@ -39,6 +39,7 @@ This external component for ESPHome fetches [town weather forecast](https://www.
 
 * **id** (Optional, ID): The ID to use for this component.
 * **time_id** (Required, ID): The ID of the `time` component used to provide the current time for forecast indexing.
+* **http_request_id** (Optional, ID): The ID of the `http_request` component. Automatically detected if only one exists.
 * **api_key** (Required, string, templatable): Your CWA Open Data API key.
 * **city_name** (Required, string, templatable): The name of the city (e.g., "新北市").
 * **town_name** (Required, string, templatable): The name of the [town](https://opendata.cwa.gov.tw/opendatadoc/Opendata_City.pdf) (e.g., "中和區").
