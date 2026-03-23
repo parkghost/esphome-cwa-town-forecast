@@ -285,9 +285,7 @@ bool CWATownForecast::send_request_() {
     if (now.is_valid()) {
       char buffer[25];
       unsigned long seconds = time_to_.value() / 1000;
-      std::tm tm_now = now.to_c_tm();
-      time_t t = std::mktime(&tm_now);
-      t += seconds;
+      time_t t = now.timestamp + seconds;
       std::tm tm_new = ESPTime::from_epoch_local(t).to_c_tm();
       std::strftime(buffer, sizeof(buffer), "%Y-%m-%dT%H:%M:%S", &tm_new);
       std::string encoded_buffer = url_encode(std::string(buffer));

@@ -398,11 +398,20 @@ static inline bool parse_element_value_key(const std::string &key, ElementValueK
   return false;
 }
 
-// Convert a std::tm struct to ESPTime
+// Convert a std::tm struct (local time) to ESPTime.
 static inline ESPTime tm_to_esptime(const std::tm tm) {
-  std::tm t = tm;
-  std::time_t epoch = std::mktime(&t);
-  return ESPTime::from_c_tm(&t, epoch);
+  ESPTime esp_time{};
+  esp_time.second = tm.tm_sec;
+  esp_time.minute = tm.tm_min;
+  esp_time.hour = tm.tm_hour;
+  esp_time.day_of_month = tm.tm_mday;
+  esp_time.month = tm.tm_mon + 1;
+  esp_time.year = tm.tm_year + 1900;
+  esp_time.day_of_week = tm.tm_wday == 0 ? 1 : tm.tm_wday + 1;
+  esp_time.day_of_year = tm.tm_yday + 1;
+  esp_time.is_dst = tm.tm_isdst > 0;
+  esp_time.recalc_timestamp_local();
+  return esp_time;
 }
 
 struct Time {
