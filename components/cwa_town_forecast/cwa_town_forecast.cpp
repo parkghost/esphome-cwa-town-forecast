@@ -395,12 +395,18 @@ bool CWATownForecast::parse_to_record(HttpStreamAdapter &stream, Record& record,
     return false;
   }
   record.locations_name = stream.readStringUntil('"');
+  if (record.locations_name.empty()) {
+    ESP_LOGW(TAG, "LocationsName value is empty (city text_sensor will be empty)");
+  }
 
   if (!stream.find("\"LocationName\":\"")) {
     ESP_LOGE(TAG, "Could not find LocationName");
     return false;
   }
   record.location_name = stream.readStringUntil('"');
+  if (record.location_name.empty()) {
+    ESP_LOGW(TAG, "LocationName value is empty (town text_sensor will be empty)");
+  }
 
   auto parse_coordinate = [&](const char *key, double &out) -> bool {
     if (!stream.find(key)) {
@@ -469,7 +475,10 @@ bool CWATownForecast::parse_to_record(HttpStreamAdapter &stream, Record& record,
     // check for empty array
     int next = stream.peek();
     if (next == ']') {
-      ESP_LOGW(TAG, "Empty Time array for %s, skipping element processing", we.element_name.c_str());
+      ESP_LOGW(TAG,
+               "Empty Time array for %s: element will not be added to record; "
+               "dependent sensors will publish NaN/empty and show Unavailable",
+               we.element_name.c_str());
       stream.read();
       continue;
     }
@@ -573,6 +582,9 @@ bool CWATownForecast::parse_to_record(HttpStreamAdapter &stream, Record& record,
                 }
                 ts.element_values.emplace_back(ElementValueKey::WEATHER_ICON, PsramString(icon));
               } else {
+                ESP_LOGW(TAG,
+                         "WeatherCode '%s' has no icon mapping; weather_icon will be empty for this time slot",
+                         value.c_str());
                 ts.element_values.emplace_back(ElementValueKey::WEATHER_ICON, PsramString(""));
               }
             }
