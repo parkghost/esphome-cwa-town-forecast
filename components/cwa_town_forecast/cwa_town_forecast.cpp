@@ -356,15 +356,15 @@ bool CWATownForecast::send_request_() {
 }
 
 // Parses ISO8601 date/time string into std::tm.
-static bool parse_iso8601(const std::string &s, std::tm &tm) {
+static bool parse_iso8601(const char *s, std::tm &tm) {
   std::memset(&tm, 0, sizeof(tm));
   int year, month, day, hour = 0, min = 0, sec = 0;
   int matched;
-  if (s.find('T') != std::string::npos) {
-    matched = std::sscanf(s.c_str(), "%d-%d-%dT%d:%d:%d", &year, &month, &day, &hour, &min, &sec);
+  if (std::strchr(s, 'T') != nullptr) {
+    matched = std::sscanf(s, "%d-%d-%dT%d:%d:%d", &year, &month, &day, &hour, &min, &sec);
     if (matched < 6) return false;
   } else {
-    matched = std::sscanf(s.c_str(), "%d-%d-%d", &year, &month, &day);
+    matched = std::sscanf(s, "%d-%d-%d", &year, &month, &day);
     if (matched != 3) return false;
   }
   tm.tm_year = year - 1900;
@@ -389,6 +389,8 @@ bool CWATownForecast::parse_to_record(HttpStreamAdapter &stream, Record& record,
   
   record.mode = this->mode_;
   record.weather_elements.reserve(this->mode_ == Mode::THREE_DAYS ? WEATHER_ELEMENT_NAMES_3DAYS_SIZE : WEATHER_ELEMENT_NAMES_7DAYS_SIZE);
+  record.string_pool = std::make_shared<StringPool>();
+  StringPool &pool = *record.string_pool;
   
   if (!stream.find("\"LocationsName\":\"")) {
     ESP_LOGE(TAG, "Could not find LocationsName");
@@ -457,6 +459,13 @@ bool CWATownForecast::parse_to_record(HttpStreamAdapter &stream, Record& record,
   ArduinoJson::JsonDocument time_obj;
 #endif
   bool has_valid_data = false;  // Track if we have at least one element with valid data
+
+  auto add_element_value = [&pool](Time &t, ElementValueKey key, const char *value) {
+    if (!t.element_values.emplace_back(key, pool.intern(value))) {
+      ESP_LOGW(TAG, "Too many element values in one time slot; dropping %s", element_value_key_to_string(key).c_str());
+    }
+  };
+
   do {
     App.feed_wdt();
     WeatherElement we;
@@ -486,6 +495,11 @@ bool CWATownForecast::parse_to_record(HttpStreamAdapter &stream, Record& record,
     // Mark that we found at least one element with data
     has_valid_data = true;
 
+    // Pre-size for typical slot counts (3-day 3-hourly elements: 32 slots,
+    // 7-day half-day intervals: ~14); 3-day hourly elements (~56 slots) grow
+    // once more from here
+    we.times.reserve(this->mode_ == Mode::THREE_DAYS ? 32 : 16);
+
     do {
       time_obj.clear();      
       ESP_LOGV(TAG, "Parsing JSON with %d bytes available", stream.available());
@@ -512,31 +526,31 @@ bool CWATownForecast::parse_to_record(HttpStreamAdapter &stream, Record& record,
       }
 
       Time ts;
-      ts.element_values.reserve(3);
-      
-      if (time_obj["DataTime"].is<std::string>()) {
-        std::string tmp = time_obj["DataTime"].as<std::string>();
+      ts.string_pool = record.string_pool;
+
+      if (time_obj["DataTime"].is<const char *>()) {
+        const char *tmp = time_obj["DataTime"].as<const char *>();
         std::tm temp_tm;
         if (!parse_iso8601(tmp, temp_tm)) {
-          ESP_LOGE(TAG, "Could not parse DataTime: %s", tmp.c_str());
+          ESP_LOGE(TAG, "Could not parse DataTime: %s", tmp);
           return false;
         }
         ts.data_time = temp_tm;
       }
-      if (time_obj["StartTime"].is<std::string>()) {
-        std::string tmp = time_obj["StartTime"].as<std::string>();
+      if (time_obj["StartTime"].is<const char *>()) {
+        const char *tmp = time_obj["StartTime"].as<const char *>();
         std::tm temp_tm;
         if (!parse_iso8601(tmp, temp_tm)) {
-          ESP_LOGE(TAG, "Could not parse StartTime: %s", tmp.c_str());
+          ESP_LOGE(TAG, "Could not parse StartTime: %s", tmp);
           return false;
         }
         ts.start_time_data = temp_tm;
       }
-      if (time_obj["EndTime"].is<std::string>()) {
-        std::string tmp = time_obj["EndTime"].as<std::string>();
+      if (time_obj["EndTime"].is<const char *>()) {
+        const char *tmp = time_obj["EndTime"].as<const char *>();
         std::tm temp_tm;
         if (!parse_iso8601(tmp, temp_tm)) {
-          ESP_LOGE(TAG, "Could not parse EndTime: %s", tmp.c_str());
+          ESP_LOGE(TAG, "Could not parse EndTime: %s", tmp);
           return false;
         }
         ts.end_time_data = temp_tm;
@@ -547,20 +561,25 @@ bool CWATownForecast::parse_to_record(HttpStreamAdapter &stream, Record& record,
         for (ArduinoJson::JsonPair kv : val_obj) {
           ElementValueKey evk;
           if (parse_element_value_key(kv.key().c_str(), evk)) {
-            auto value = kv.value().as<std::string>();
+            const char *value = kv.value().as<const char *>();
+            std::string value_buf;
+            if (value == nullptr) {
+              // Non-string scalars (number/bool) stringify through std::string
+              value_buf = kv.value().as<std::string>();
+              value = value_buf.c_str();
+            }
             auto it = std::find_if(ts.element_values.begin(), ts.element_values.end(),
-                                   [&](const std::pair<ElementValueKey, PsramString> &p) { return p.first == evk; });
-            if (it != ts.element_values.end())
-              it->second = PsramString(value);
-            else
-              ts.element_values.emplace_back(evk, PsramString(value));
+                                   [&](const ElementValueEntry &p) { return p.key == static_cast<uint8_t>(evk); });
+            if (it != ts.element_values.end()) {
+              it->offset = pool.intern(value);
+            } else {
+              add_element_value(ts, evk, value);
+            }
 
             // Special handling for weather codes to generate weather icons
             if (we.element_name == WEATHER_ELEMENT_NAME_WEATHER && evk == ElementValueKey::WEATHER_CODE) {
-              const char* icon_name = find_weather_icon(value);
-              if (icon_name && strlen(icon_name) > 0) {
-                std::string icon = icon_name;
-
+              const char* icon = find_weather_icon(value);
+              if (icon && strlen(icon) > 0) {
                 // Adjust icon based on time of day
                 std::tm t = ts.to_tm();
                 sun.setCurrentDate(t.tm_year + 1900, t.tm_mon + 1, t.tm_mday);
@@ -574,18 +593,18 @@ bool CWATownForecast::parse_to_record(HttpStreamAdapter &stream, Record& record,
                          sunrise_minute, sunset_hour, sunset_minute);
 
                 if (t.tm_hour < sunrise_hour || t.tm_hour >= sunset_hour) {
-                  if (icon == "sunny") {
+                  if (strcmp(icon, "sunny") == 0) {
                     icon = "night";
-                  } else if (icon == "partly-cloudy" || icon == "cloudy") {
+                  } else if (strcmp(icon, "partly-cloudy") == 0 || strcmp(icon, "cloudy") == 0) {
                     icon = "night-partly-cloudy";
                   }
                 }
-                ts.element_values.emplace_back(ElementValueKey::WEATHER_ICON, PsramString(icon));
+                add_element_value(ts, ElementValueKey::WEATHER_ICON, icon);
               } else {
                 ESP_LOGW(TAG,
                          "WeatherCode '%s' has no icon mapping; weather_icon will be empty for this time slot",
-                         value.c_str());
-                ts.element_values.emplace_back(ElementValueKey::WEATHER_ICON, PsramString(""));
+                         value);
+                add_element_value(ts, ElementValueKey::WEATHER_ICON, "");
               }
             }
           } else {
@@ -606,41 +625,28 @@ bool CWATownForecast::parse_to_record(HttpStreamAdapter &stream, Record& record,
 
   // Determine start and end time for the entire record
   bool first_time = true;
-  std::tm min_tm{};
-  std::tm max_tm{};
+  std::time_t min_epoch = 0;
+  std::time_t max_epoch = 0;
   for (const auto &we : record.weather_elements) {
     for (const auto &t : we.times) {
-      std::tm candidate_tm{};
-      if (t.data_time.is_valid()) {
-        candidate_tm = t.data_time.to_tm();
-      } else if (t.start_time_data.is_valid()) {
-        candidate_tm = t.start_time_data.to_tm();
-      } else {
+      const TimeField &primary = t.primary_field();
+      if (!primary.is_valid()) {
         continue;
       }
-      std::time_t cand_epoch = std::mktime(&candidate_tm);
-      if (first_time || cand_epoch < std::mktime(&min_tm)) {
-        min_tm = candidate_tm;
+      std::time_t cand_epoch = primary.epoch();
+      if (first_time || cand_epoch < min_epoch) {
+        min_epoch = cand_epoch;
       }
-      if (first_time) {
-        if (t.end_time_data.is_valid()) {
-          max_tm = t.end_time_data.to_tm();
-        } else {
-          max_tm = candidate_tm;
-        }
-      } else if (t.end_time_data.is_valid()) {
-        std::tm end_tm = t.end_time_data.to_tm();
-        std::time_t end_epoch = std::mktime(&end_tm);
-        if (end_epoch > std::mktime(&max_tm)) {
-          max_tm = end_tm;
-        }
+      std::time_t end_cand = t.end_time_data.is_valid() ? t.end_time_data.epoch() : cand_epoch;
+      if (first_time || end_cand > max_epoch) {
+        max_epoch = end_cand;
       }
       first_time = false;
     }
   }
   if (!first_time) {
-    record.start_time = min_tm;
-    record.end_time = max_tm;
+    record.start_time = TimeField(min_epoch).to_tm();
+    record.end_time = TimeField(max_epoch).to_tm();
   }
 
   // Set the updated time to current time
@@ -676,18 +682,16 @@ bool CWATownForecast::parse_to_record(HttpStreamAdapter &stream, Record& record,
     combine_chars(we.element_name.c_str(), we.element_name.size());
     for (const auto &ts : we.times) {
       if (ts.data_time.is_valid()) {
-        std::tm tm_copy = ts.data_time.to_tm();
-        combine_int(static_cast<uint64_t>(std::mktime(&tm_copy)));
+        combine_int(static_cast<uint64_t>(ts.data_time.epoch()));
       } else if (ts.start_time_data.is_valid() && ts.end_time_data.is_valid()) {
-        std::tm tm1 = ts.start_time_data.to_tm();
-        std::tm tm2 = ts.end_time_data.to_tm();
-        combine_int(static_cast<uint64_t>(std::mktime(&tm1)));
-        combine_int(static_cast<uint64_t>(std::mktime(&tm2)));
+        combine_int(static_cast<uint64_t>(ts.start_time_data.epoch()));
+        combine_int(static_cast<uint64_t>(ts.end_time_data.epoch()));
       }
 
       for (const auto &p : ts.element_values) {
-        combine_int(static_cast<uint64_t>(p.first));
-        combine_chars(p.second.c_str(), p.second.size());
+        combine_int(static_cast<uint64_t>(p.key));
+        const char *v = pool.get(p.offset);
+        combine_chars(v, strlen(v));
       }
     }
   }
