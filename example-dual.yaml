@@ -264,8 +264,6 @@ text_sensor:
       name: "3D Weather Code"
     weather_description:
       name: "3D Weather Description"
-    weather_icon:
-      name: "3D Weather Icon"
     wind_direction:
       name: "3D Wind Direction"
     beaufort_scale:
@@ -300,8 +298,6 @@ text_sensor:
       name: "7D Weather"
     weather_code:
       name: "7D Weather Code"
-    weather_icon:
-      name: "7D Weather Icon"
     uv_exposure_level:
       name: "7D UV Exposure Level"
     weather_description:
@@ -405,7 +401,7 @@ script:
           ESP_LOGI("forecast", "  Weather: %s", data_3d.find_value(ElementValueKey::WEATHER, fallback, now.to_c_tm()).c_str());
           ESP_LOGI("forecast", "  Weather Description: %s", data_3d.find_value(ElementValueKey::WEATHER_DESCRIPTION, fallback, now.to_c_tm()).c_str());
           ESP_LOGI("forecast", "  Weather Code: %s", data_3d.find_value(ElementValueKey::WEATHER_CODE, fallback, now.to_c_tm()).c_str());
-          ESP_LOGI("forecast", "  Weather Icon: %s", data_3d.find_value(ElementValueKey::WEATHER_ICON, fallback, now.to_c_tm()).c_str());
+          ESP_LOGI("forecast", "  Weather Icon: %s", data_3d.find_weather_icon(fallback, now.to_c_tm()).name);
           ESP_LOGI("forecast", "");
 
           ESP_LOGI("forecast", "Today's Forecast(From now until midnight):");
@@ -439,7 +435,7 @@ script:
           ESP_LOGI("forecast", "  UV Exposure Level: %s", data_7d.find_value(ElementValueKey::UV_EXPOSURE_LEVEL, fallback, now.to_c_tm()).c_str());
           ESP_LOGI("forecast", "  Weather: %s", data_7d.find_value(ElementValueKey::WEATHER, fallback, now.to_c_tm()).c_str());
           ESP_LOGI("forecast", "  Weather Code: %s", data_7d.find_value(ElementValueKey::WEATHER_CODE, fallback, now.to_c_tm()).c_str());
-          ESP_LOGI("forecast", "  Weather Icon: %s", data_7d.find_value(ElementValueKey::WEATHER_ICON, fallback, now.to_c_tm()).c_str());
+          ESP_LOGI("forecast", "  Weather Icon: %s", data_7d.find_weather_icon(fallback, now.to_c_tm()).name);
           ESP_LOGI("forecast", "  Weather Description: %s", data_7d.find_value(ElementValueKey::WEATHER_DESCRIPTION, fallback, now.to_c_tm()).c_str());
           ESP_LOGI("forecast", "  Wind Direction: %s", data_7d.find_value(ElementValueKey::WIND_DIRECTION, fallback, now.to_c_tm()).c_str());
           ESP_LOGI("forecast", "  Wind Speed: %s m/s", data_7d.find_value(ElementValueKey::WIND_SPEED, fallback, now.to_c_tm()).c_str());
@@ -461,7 +457,7 @@ script:
               auto weekday = esp_noon.strftime("%a");
               std::string min_val = data_7d.find_value(ElementValueKey::MIN_TEMPERATURE, false, noon);
               std::string max_val = data_7d.find_value(ElementValueKey::MAX_TEMPERATURE, false, noon);
-              std::string icon = data_7d.find_value(ElementValueKey::WEATHER_ICON, false, noon);
+              std::string icon = data_7d.find_weather_icon(false, noon).name;
               std::string rain = data_7d.find_value(ElementValueKey::PROBABILITY_OF_PRECIPITATION, false, noon);
               ESP_LOGI("forecast", "  %s %s %s: icon %s, rain %s%%, min %s°C, max %s°C",
                        date_str.c_str(),weekday.c_str(),  "(Day)  ", icon.c_str(), rain.c_str(), min_val.c_str(), max_val.c_str());
@@ -474,7 +470,7 @@ script:
               auto esp_night = tm_to_esptime(night);
               std::string min_val2 = data_7d.find_value(ElementValueKey::MIN_TEMPERATURE, false, night);
               std::string max_val2 = data_7d.find_value(ElementValueKey::MAX_TEMPERATURE, false, night);
-              std::string icon2 = data_7d.find_value(ElementValueKey::WEATHER_ICON, false, night);
+              std::string icon2 = data_7d.find_weather_icon(false, night).name;
               std::string rain2 = data_7d.find_value(ElementValueKey::PROBABILITY_OF_PRECIPITATION, false, night);
               ESP_LOGI("forecast", "  %s %s %s: icon %s, rain %s%%, min %s°C, max %s°C",
                        date_str.c_str(), weekday.c_str(), "(Night)",icon2.c_str(), rain2.c_str(), min_val2.c_str(), max_val2.c_str());

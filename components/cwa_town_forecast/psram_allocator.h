@@ -16,15 +16,10 @@ namespace cwa_town_forecast {
 // nullptr and corrupt memory. Instances are interchangeable (deallocate() is
 // flag-independent), hence the constant equality operators std containers
 // require.
-template<class T>
-struct PsramAllocator : public RAMAllocator<T> {
+template<class T> struct PsramAllocator : public RAMAllocator<T> {
   PsramAllocator() = default;
-  template<class U>
-  PsramAllocator(const PsramAllocator<U> &other) : RAMAllocator<T>(other) {}
-  template<class U>
-  struct rebind {
-    using other = PsramAllocator<U>;
-  };
+  template<class U> PsramAllocator(const PsramAllocator<U> &other) : RAMAllocator<T>(other) {}
+  template<class U> struct rebind { using other = PsramAllocator<U>; };
 
   T *allocate(size_t n) {
     T *ptr = RAMAllocator<T>::allocate(n);

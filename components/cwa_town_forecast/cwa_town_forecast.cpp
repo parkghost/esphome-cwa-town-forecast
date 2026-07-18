@@ -11,6 +11,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cinttypes>
 #include <cstdio>
 #include <cstring>
 #include <ctime>
@@ -24,13 +25,40 @@
 namespace esphome {
 namespace cwa_town_forecast {
 
+bool Record::is_daytime(const std::tm &t) const {
+  SunSet sun;
+  sun.setPosition(this->latitude, this->longitude, this->timezone_offset);
+  sun.setCurrentDate(t.tm_year + 1900, t.tm_mon + 1, t.tm_mday);
+  int minutes_of_day = t.tm_hour * 60 + t.tm_min;
+  return minutes_of_day >= static_cast<int>(sun.calcSunrise()) && minutes_of_day < static_cast<int>(sun.calcSunset());
+}
+
+WeatherIconInfo Record::find_weather_icon(bool fallback_to_first_element, const std::tm &tm, IconSet set) const {
+  WeatherIconInfo info{};
+  info.name = "";
+  info.unicode = "";
+  std::string code = this->find_value(ElementValueKey::WEATHER_CODE, fallback_to_first_element, tm, "");
+  if (code.empty())
+    return info;
+  snprintf(info.code, sizeof(info.code), "%s", code.c_str());
+  const IconGlyph *glyph = find_weather_icon_glyph(info.code, this->is_daytime(tm), set);
+  if (glyph == nullptr)
+    return info;
+  info.name = glyph->name;
+  info.unicode = glyph->unicode;
+  info.flags = weather_code_flags(info.code);
+  info.valid = true;
+  return info;
+}
+
 // Returns the setup priority for the component.
 float CWATownForecast::get_setup_priority() const { return setup_priority::LATE; }
 
 // Initializes the component.
 void CWATownForecast::setup() {
   if (CWA_PSRAM_AVAILABLE()) {
-    ESP_LOGI(TAG, "PSRAM detected (%zu bytes), using extended memory allocation", heap_caps_get_total_size(MALLOC_CAP_SPIRAM));
+    ESP_LOGI(TAG, "PSRAM detected (%zu bytes), using extended memory allocation",
+             heap_caps_get_total_size(MALLOC_CAP_SPIRAM));
     this->record_.weather_elements.reserve(32);
     ESP_LOGV(TAG, "Using extended buffers for PSRAM");
   } else {
@@ -79,9 +107,9 @@ void CWATownForecast::dump_config() {
   ESP_LOGCONFIG(TAG, "  Early Data Clear: %s", early_data_clear_to_string(early_data_clear_.value()).c_str());
   ESP_LOGCONFIG(TAG, "  Fallback to First Element: %s", fallback_to_first_element_.value() ? "true" : "false");
   ESP_LOGCONFIG(TAG, "  Retain Fetched Data: %s", retain_fetched_data_.value() ? "true" : "false");
-  ESP_LOGCONFIG(TAG, "  Sensor Expiry: %u minutes", sensor_expiry_.value() / 1000 / 60);
-  ESP_LOGCONFIG(TAG, "  Retry Count: %u", retry_count_.value());
-  ESP_LOGCONFIG(TAG, "  Retry Delay: %u ms", retry_delay_.value());
+  ESP_LOGCONFIG(TAG, "  Sensor Expiry: %" PRIu32 " minutes", sensor_expiry_.value() / 1000 / 60);
+  ESP_LOGCONFIG(TAG, "  Retry Count: %" PRIu32, retry_count_.value());
+  ESP_LOGCONFIG(TAG, "  Retry Delay: %" PRIu32 " ms", retry_delay_.value());
   ESP_LOGCONFIG(TAG, "  PSRAM Available: %s", CWA_PSRAM_AVAILABLE() ? "true" : "false");
   LOG_UPDATE_INTERVAL(this);
 }
@@ -116,7 +144,7 @@ bool CWATownForecast::validate_config_() {
   }
   if (!this->weather_elements_.empty()) {
     Mode mode = this->mode_;
-    const char* const* valid_names;
+    const char *const *valid_names;
     size_t valid_names_size;
     if (mode == Mode::THREE_DAYS) {
       valid_names = WEATHER_ELEMENT_NAMES_3DAYS;
@@ -148,14 +176,14 @@ void CWATownForecast::try_send_request_(uint32_t attempt) {
   uint32_t retry_count = this->retry_count_.value();
 
   if (attempt > 0) {
-    ESP_LOGW(TAG, "Retrying request (attempt %u/%u)", attempt + 1, retry_count + 1);
+    ESP_LOGW(TAG, "Retrying request (attempt %" PRIu32 "/%" PRIu32 ")", attempt + 1, retry_count + 1);
   }
-  ESP_LOGD(TAG, "HTTP request attempt %u/%u", attempt + 1, retry_count + 1);
+  ESP_LOGD(TAG, "HTTP request attempt %" PRIu32 "/%" PRIu32, attempt + 1, retry_count + 1);
 
   if (this->send_request_()) {
     // Success
     if (attempt > 0) {
-      ESP_LOGI(TAG, "Request succeeded on attempt %u/%u", attempt + 1, retry_count + 1);
+      ESP_LOGI(TAG, "Request succeeded on attempt %" PRIu32 "/%" PRIu32, attempt + 1, retry_count + 1);
     }
 
     this->retry_in_progress_ = false;
@@ -181,7 +209,7 @@ void CWATownForecast::try_send_request_(uint32_t attempt) {
 
   // Failure — decide whether to retry or give up
   if (attempt < retry_count) {
-    ESP_LOGW(TAG, "Request failed on attempt %u/%u, will retry", attempt + 1, retry_count + 1);
+    ESP_LOGW(TAG, "Request failed on attempt %" PRIu32 "/%" PRIu32 ", will retry", attempt + 1, retry_count + 1);
 
     uint32_t retry_delay = this->retry_delay_.value();
     uint32_t backoff_delay = retry_delay * (1 << attempt);
@@ -191,18 +219,17 @@ void CWATownForecast::try_send_request_(uint32_t attempt) {
       total_delay = 30000;
     }
 
-    ESP_LOGD(TAG, "Backoff delay: %u ms (base: %u ms, jitter: %u ms)", total_delay, backoff_delay, jitter);
+    ESP_LOGD(TAG, "Backoff delay: %" PRIu32 " ms (base: %" PRIu32 " ms, jitter: %" PRIu32 " ms)", total_delay,
+             backoff_delay, jitter);
 
     uint32_t next_attempt = attempt + 1;
     this->retry_in_progress_ = true;
-    this->set_timeout("cwa_retry", total_delay, [this, next_attempt]() {
-      this->try_send_request_(next_attempt);
-    });
+    this->set_timeout("cwa_retry", total_delay, [this, next_attempt]() { this->try_send_request_(next_attempt); });
     return;
   }
 
   // Final failure
-  ESP_LOGE(TAG, "Request failed after %u attempts", retry_count + 1);
+  ESP_LOGE(TAG, "Request failed after %" PRIu32 " attempts", retry_count + 1);
   this->retry_in_progress_ = false;
   this->status_set_warning();
   this->on_error_trigger_.trigger();
@@ -253,19 +280,23 @@ bool CWATownForecast::send_request_() {
       ESP_LOGD(TAG, "[On] Clear forecast data before sending request");
       this->record_.release_data();
       break;
+
+    case OFF:
+      break;
   }
 
   std::string city_name = city_name_.value();
 
   // Get the appropriate resource ID based on forecast mode
   Mode mode = mode_;
-  const char* resource_id = find_city_resource_id(city_name, mode == Mode::SEVEN_DAYS);
+  const char *resource_id = find_city_resource_id(city_name, mode == Mode::SEVEN_DAYS);
   if (!resource_id || strlen(resource_id) == 0) {
     ESP_LOGE(TAG, "Invalid city name: %s", city_name.c_str());
     return false;
   }
 
-  ESP_LOGD(TAG, "City name: %s, Town name: %s, Mode: %s", city_name.c_str(), town_name_.value().c_str(), mode_to_string(mode).c_str());
+  ESP_LOGD(TAG, "City name: %s, Town name: %s, Mode: %s", city_name.c_str(), town_name_.value().c_str(),
+           mode_to_string(mode).c_str());
   ESP_LOGD(TAG, "Resource ID: %s", resource_id);
   std::string encoded_town_name = url_encode(town_name_.value());
   std::string element_param;
@@ -273,7 +304,8 @@ bool CWATownForecast::send_request_() {
     std::string joined;
     bool first = true;
     for (const auto &name : this->weather_elements_) {
-      if (!first) joined += ",";
+      if (!first)
+        joined += ",";
       joined += url_encode(name);
       first = false;
     }
@@ -294,8 +326,9 @@ bool CWATownForecast::send_request_() {
       ESP_LOGW(TAG, "Ignoring timeTo parameter, RTC not set");
     }
   }
-  std::string url = "https://opendata.cwa.gov.tw/api/v1/rest/datastore/" + std::string(resource_id) + "?Authorization=" + api_key_.value() +
-                    "&format=JSON&LocationName=" + encoded_town_name + element_param + time_to_param;
+  std::string url = "https://opendata.cwa.gov.tw/api/v1/rest/datastore/" + std::string(resource_id) +
+                    "?Authorization=" + api_key_.value() + "&format=JSON&LocationName=" + encoded_town_name +
+                    element_param + time_to_param;
 
   ESP_LOGD(TAG, "Sending query: %s", url.c_str());
 
@@ -315,17 +348,18 @@ bool CWATownForecast::send_request_() {
     ESP_LOGD(TAG, "HTTP 200 OK, content_length: %zu", container->content_length);
 
     // Wrap container with our stream adapter for streaming JSON parsing
-    HttpStreamAdapter stream(container, 1024, this->http_request_->get_timeout()); // 1KB buffer
+    HttpStreamAdapter stream(container, 1024, this->http_request_->get_timeout());  // 1KB buffer
 
     // Add timeout protection for response processing
     unsigned long process_start = millis();
-    uint32_t max_process_time = this->http_request_->get_timeout() + 10000; // Add 10s buffer for processing
+    uint32_t max_process_time = this->http_request_->get_timeout() + 10000;  // Add 10s buffer for processing
 
     request_success = this->process_response_(stream, hash_code);
 
     unsigned long process_duration = millis() - process_start;
     if (process_duration > max_process_time) {
-      ESP_LOGW(TAG, "Response processing took too long: %lu ms (max: %u ms)", process_duration, max_process_time);
+      ESP_LOGW(TAG, "Response processing took too long: %lu ms (max: %" PRIu32 " ms)", process_duration,
+               max_process_time);
       request_success = false;
     }
 
@@ -362,10 +396,12 @@ static bool parse_iso8601(const char *s, std::tm &tm) {
   int matched;
   if (std::strchr(s, 'T') != nullptr) {
     matched = std::sscanf(s, "%d-%d-%dT%d:%d:%d", &year, &month, &day, &hour, &min, &sec);
-    if (matched < 6) return false;
+    if (matched < 6)
+      return false;
   } else {
     matched = std::sscanf(s, "%d-%d-%d", &year, &month, &day);
-    if (matched != 3) return false;
+    if (matched != 3)
+      return false;
   }
   tm.tm_year = year - 1900;
   tm.tm_mon = month - 1;
@@ -376,7 +412,7 @@ static bool parse_iso8601(const char *s, std::tm &tm) {
   return true;
 }
 
-bool CWATownForecast::parse_to_record(HttpStreamAdapter &stream, Record& record, uint64_t &hash_code) {
+bool CWATownForecast::parse_to_record(HttpStreamAdapter &stream, Record &record, uint64_t &hash_code) {
   if (!stream.find("\"success\":")) {
     ESP_LOGE(TAG, "Could not find success field");
     return false;
@@ -386,12 +422,13 @@ bool CWATownForecast::parse_to_record(HttpStreamAdapter &stream, Record& record,
     ESP_LOGE(TAG, "API response 'success' is not true: %s", success_val.c_str());
     return false;
   }
-  
+
   record.mode = this->mode_;
-  record.weather_elements.reserve(this->mode_ == Mode::THREE_DAYS ? WEATHER_ELEMENT_NAMES_3DAYS_SIZE : WEATHER_ELEMENT_NAMES_7DAYS_SIZE);
+  record.weather_elements.reserve(this->mode_ == Mode::THREE_DAYS ? WEATHER_ELEMENT_NAMES_3DAYS_SIZE
+                                                                  : WEATHER_ELEMENT_NAMES_7DAYS_SIZE);
   record.string_pool = std::make_shared<StringPool>();
   StringPool &pool = *record.string_pool;
-  
+
   if (!stream.find("\"LocationsName\":\"")) {
     ESP_LOGE(TAG, "Could not find LocationsName");
     return false;
@@ -428,8 +465,10 @@ bool CWATownForecast::parse_to_record(HttpStreamAdapter &stream, Record& record,
     return true;
   };
 
-  if (!parse_coordinate("\"Latitude\":\"", record.latitude)) return false;
-  if (!parse_coordinate("\"Longitude\":\"", record.longitude)) return false;
+  if (!parse_coordinate("\"Latitude\":\"", record.latitude))
+    return false;
+  if (!parse_coordinate("\"Longitude\":\"", record.longitude))
+    return false;
 
   if (!stream.find("\"WeatherElement\":[")) {
     ESP_LOGE(TAG, "Could not find WeatherElement array");
@@ -437,17 +476,14 @@ bool CWATownForecast::parse_to_record(HttpStreamAdapter &stream, Record& record,
   }
 
   ESPTime now = this->rtc_->now();
-  SunSet sun;
-  double timezone_offset = static_cast<double>(now.timezone_offset()) / 3600;
-  sun.setPosition(record.latitude, record.longitude, timezone_offset);
-  ESP_LOGD(TAG, "Sunset Latitude: %f, Longitude: %f, Offset: %.0f", record.latitude, record.longitude, timezone_offset);
+  record.timezone_offset = static_cast<double>(now.timezone_offset()) / 3600;
+  ESP_LOGD(TAG, "Sunset Latitude: %f, Longitude: %f, Offset: %.0f", record.latitude, record.longitude,
+           record.timezone_offset);
 
 #ifdef USE_PSRAM
   // PSRAM-aware allocator for ArduinoJson to offload JSON parsing buffers from internal RAM
   struct SpiRamJsonAllocator : ArduinoJson::Allocator {
-    void *allocate(size_t size) override {
-      return heap_caps_malloc(size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-    }
+    void *allocate(size_t size) override { return heap_caps_malloc(size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT); }
     void deallocate(void *ptr) override { heap_caps_free(ptr); }
     void *reallocate(void *ptr, size_t new_size) override {
       return heap_caps_realloc(ptr, new_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
@@ -501,20 +537,20 @@ bool CWATownForecast::parse_to_record(HttpStreamAdapter &stream, Record& record,
     we.times.reserve(this->mode_ == Mode::THREE_DAYS ? 32 : 16);
 
     do {
-      time_obj.clear();      
+      time_obj.clear();
       ESP_LOGV(TAG, "Parsing JSON with %d bytes available", stream.available());
-      
+
       // The ReadLoggingStream will output the stream content to Serial for debugging
       DeserializationError err = deserializeJson(time_obj, stream);
       if (err) {
         ESP_LOGE(TAG, "JSON parsing failed: %s", err.c_str());
         ESP_LOGE(TAG, "Stream available bytes before error: %d", stream.available());
-        
+
         if (err == DeserializationError::IncompleteInput) {
           ESP_LOGE(TAG, "IncompleteInput detected - JSON document was truncated");
-          ESP_LOGE(TAG, "Current memory state - free heap: %u, max block: %u", 
-                   esp_get_free_heap_size(), heap_caps_get_largest_free_block(MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL));
-          
+          ESP_LOGE(TAG, "Current memory state - free heap: %" PRIu32 ", max block: %zu", esp_get_free_heap_size(),
+                   heap_caps_get_largest_free_block(MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL));
+
           // For IncompleteInput, we should abort the entire parsing process
           // rather than try to recover, as the data integrity is compromised
           ESP_LOGE(TAG, "Aborting parse due to incomplete JSON data");
@@ -578,34 +614,13 @@ bool CWATownForecast::parse_to_record(HttpStreamAdapter &stream, Record& record,
 
             // Special handling for weather codes to generate weather icons
             if (we.element_name == WEATHER_ELEMENT_NAME_WEATHER && evk == ElementValueKey::WEATHER_CODE) {
-              const char* icon = find_weather_icon(value);
-              if (icon && strlen(icon) > 0) {
-                // Adjust icon based on time of day
-                std::tm t = ts.to_tm();
-                sun.setCurrentDate(t.tm_year + 1900, t.tm_mon + 1, t.tm_mday);
-                double sunrise = sun.calcSunrise();
-                double sunset = sun.calcSunset();
-                int sunrise_hour = static_cast<int>(sunrise / 60);
-                int sunrise_minute = static_cast<int>(sunrise) % 60;
-                int sunset_hour = static_cast<int>(sunset / 60);
-                int sunset_minute = static_cast<int>(sunset) % 60;
-                ESP_LOGV(TAG, "Date: %04d-%02d-%02d Sunrise: %02d:%02d, Sunset: %02d:%02d", t.tm_year + 1900, t.tm_mon + 1, t.tm_mday, sunrise_hour,
-                         sunrise_minute, sunset_hour, sunset_minute);
-
-                if (t.tm_hour < sunrise_hour || t.tm_hour >= sunset_hour) {
-                  if (strcmp(icon, "sunny") == 0) {
-                    icon = "night";
-                  } else if (strcmp(icon, "partly-cloudy") == 0 || strcmp(icon, "cloudy") == 0) {
-                    icon = "night-partly-cloudy";
-                  }
-                }
-                add_element_value(ts, ElementValueKey::WEATHER_ICON, icon);
-              } else {
-                ESP_LOGW(TAG,
-                         "WeatherCode '%s' has no icon mapping; weather_icon will be empty for this time slot",
+              std::tm t = ts.to_tm();
+              const char *icon = find_weather_icon_name(value, record.is_daytime(t), IconSet::MDI);
+              if (strlen(icon) == 0) {
+                ESP_LOGW(TAG, "WeatherCode '%s' has no icon mapping; weather_icon will be empty for this time slot",
                          value);
-                add_element_value(ts, ElementValueKey::WEATHER_ICON, "");
               }
+              add_element_value(ts, ElementValueKey::WEATHER_ICON, icon);
             }
           } else {
             ESP_LOGW(TAG, "Unknown element value key: %s", kv.key().c_str());
@@ -657,9 +672,7 @@ bool CWATownForecast::parse_to_record(HttpStreamAdapter &stream, Record& record,
   // Calculate hash code for change detection
   uint64_t new_hash = 0;
   const uint64_t salt = 0x9e3779b97f4a7c15ULL;
-  auto combine_hash = [&](uint64_t h) {
-    new_hash ^= h + salt + (new_hash << 6) + (new_hash >> 2);
-  };
+  auto combine_hash = [&](uint64_t h) { new_hash ^= h + salt + (new_hash << 6) + (new_hash >> 2); };
   auto combine_int = [&](uint64_t v) {
     // Murmur-style integer mix
     v ^= v >> 33;
@@ -668,7 +681,7 @@ bool CWATownForecast::parse_to_record(HttpStreamAdapter &stream, Record& record,
     combine_hash(v);
   };
   // Hash raw char data directly — avoids temporary std::string allocation
-  auto combine_chars = [&](const char* data, size_t len) {
+  auto combine_chars = [&](const char *data, size_t len) {
     uint64_t h = 0xcbf29ce484222325ULL;  // FNV-1a offset basis
     for (size_t i = 0; i < len; ++i) {
       h ^= static_cast<uint64_t>(static_cast<unsigned char>(data[i]));
@@ -695,7 +708,7 @@ bool CWATownForecast::parse_to_record(HttpStreamAdapter &stream, Record& record,
       }
     }
   }
-  
+
   hash_code = new_hash;
   return true;
 }
@@ -750,16 +763,18 @@ bool CWATownForecast::check_changes(uint64_t new_hash_code) {
 }
 
 // Publishes the state of the sensor or text sensor.
-template <typename SensorT, typename PublishValFunc, typename PublishNoMatchFunc>
-void CWATownForecast::publish_state_common_(SensorT *sensor, ElementValueKey key, std::tm &target_tm, bool fallback_to_first, PublishValFunc publish_val,
+template<typename SensorT, typename PublishValFunc, typename PublishNoMatchFunc>
+void CWATownForecast::publish_state_common_(SensorT *sensor, ElementValueKey key, std::tm &target_tm,
+                                            bool fallback_to_first, PublishValFunc publish_val,
                                             PublishNoMatchFunc publish_no_match) {
-  if (!sensor) return;  // Skip if sensor is null
+  if (!sensor)
+    return;  // Skip if sensor is null
 
   // Find the corresponding element name for this key in the current mode
-  const char* element_name = find_mode_element_name(this->record_.mode, key);
+  const char *element_name = find_mode_element_name(this->record_.mode, key);
   if (!element_name) {
-    ESP_LOGE(TAG, "Invalid element value key for mode %s: %s",
-             mode_to_string(this->record_.mode).c_str(), element_value_key_to_string(key).c_str());
+    ESP_LOGE(TAG, "Invalid element value key for mode %s: %s", mode_to_string(this->record_.mode).c_str(),
+             element_value_key_to_string(key).c_str());
     publish_no_match(sensor);
     return;
   }
@@ -769,11 +784,14 @@ void CWATownForecast::publish_state_common_(SensorT *sensor, ElementValueKey key
     Time *ts = we->match_time(target_tm, key, fallback_to_first);
     if (ts) {
 #if ESP_LOG_LEVEL >= ESP_LOG_VERBOSE
-      if (ts->data_time.is_valid())
-        ESP_LOGV(TAG, "matched (%s): %s", element_name, tm_to_esptime(ts->data_time.to_tm()).strftime("%Y-%m-%d %H:%M").c_str());
-      else if (ts->start_time_data.is_valid() && ts->end_time_data.is_valid())
-        ESP_LOGV(TAG, "matched (%s): %s - %s", element_name, tm_to_esptime(ts->start_time_data.to_tm()).strftime("%Y-%m-%d %H:%M").c_str(),
+      if (ts->data_time.is_valid()) {
+        ESP_LOGV(TAG, "matched (%s): %s", element_name,
+                 tm_to_esptime(ts->data_time.to_tm()).strftime("%Y-%m-%d %H:%M").c_str());
+      } else if (ts->start_time_data.is_valid() && ts->end_time_data.is_valid()) {
+        ESP_LOGV(TAG, "matched (%s): %s - %s", element_name,
+                 tm_to_esptime(ts->start_time_data.to_tm()).strftime("%Y-%m-%d %H:%M").c_str(),
                  tm_to_esptime(ts->end_time_data.to_tm()).strftime("%Y-%m-%d %H:%M").c_str());
+      }
 #endif
       auto val = ts->find_element_value(key);
       if (!val.empty()) {
@@ -793,7 +811,8 @@ void CWATownForecast::publish_state_common_(SensorT *sensor, ElementValueKey key
 }
 
 // Publishes a numeric sensor value
-void CWATownForecast::publish_sensor_state_(sensor::Sensor *sensor, ElementValueKey key, std::tm &target_tm, bool fallback_to_first) {
+void CWATownForecast::publish_sensor_state_(sensor::Sensor *sensor, ElementValueKey key, std::tm &target_tm,
+                                            bool fallback_to_first) {
   publish_state_common_(
       sensor, key, target_tm, fallback_to_first,
       // Lambda for publishing numeric value
@@ -812,7 +831,8 @@ void CWATownForecast::publish_sensor_state_(sensor::Sensor *sensor, ElementValue
 }
 
 // Publishes a text sensor value
-void CWATownForecast::publish_text_sensor_state_(text_sensor::TextSensor *sensor, ElementValueKey key, std::tm &target_tm, bool fallback_to_first) {
+void CWATownForecast::publish_text_sensor_state_(text_sensor::TextSensor *sensor, ElementValueKey key,
+                                                 std::tm &target_tm, bool fallback_to_first) {
   publish_state_common_(
       sensor, key, target_tm, fallback_to_first,
       // Lambda for publishing text value
@@ -853,48 +873,85 @@ void CWATownForecast::publish_states_() {
   // Publish weather states based on forecast mode
   if (mode_ == Mode::THREE_DAYS) {
     // 3-day mode sensors
-    if (this->temperature_) publish_sensor_state_(this->temperature_, ElementValueKey::TEMPERATURE, target_tm, fallback);
-    if (this->dew_point_) publish_sensor_state_(this->dew_point_, ElementValueKey::DEW_POINT, target_tm, fallback);
-    if (this->apparent_temperature_) publish_sensor_state_(this->apparent_temperature_, ElementValueKey::APPARENT_TEMPERATURE, target_tm, fallback);
-    if (this->comfort_index_) publish_text_sensor_state_(this->comfort_index_, ElementValueKey::COMFORT_INDEX, target_tm, fallback);
+    if (this->temperature_)
+      publish_sensor_state_(this->temperature_, ElementValueKey::TEMPERATURE, target_tm, fallback);
+    if (this->dew_point_)
+      publish_sensor_state_(this->dew_point_, ElementValueKey::DEW_POINT, target_tm, fallback);
+    if (this->apparent_temperature_)
+      publish_sensor_state_(this->apparent_temperature_, ElementValueKey::APPARENT_TEMPERATURE, target_tm, fallback);
+    if (this->comfort_index_)
+      publish_text_sensor_state_(this->comfort_index_, ElementValueKey::COMFORT_INDEX, target_tm, fallback);
     if (this->comfort_index_description_)
-      publish_text_sensor_state_(this->comfort_index_description_, ElementValueKey::COMFORT_INDEX_DESCRIPTION, target_tm, fallback);
-    if (this->relative_humidity_) publish_sensor_state_(this->relative_humidity_, ElementValueKey::RELATIVE_HUMIDITY, target_tm, fallback);
-    if (this->wind_speed_) publish_sensor_state_(this->wind_speed_, ElementValueKey::WIND_SPEED, target_tm, fallback);
+      publish_text_sensor_state_(this->comfort_index_description_, ElementValueKey::COMFORT_INDEX_DESCRIPTION,
+                                 target_tm, fallback);
+    if (this->relative_humidity_)
+      publish_sensor_state_(this->relative_humidity_, ElementValueKey::RELATIVE_HUMIDITY, target_tm, fallback);
+    if (this->wind_speed_)
+      publish_sensor_state_(this->wind_speed_, ElementValueKey::WIND_SPEED, target_tm, fallback);
     if (this->probability_of_precipitation_)
-      publish_sensor_state_(this->probability_of_precipitation_, ElementValueKey::PROBABILITY_OF_PRECIPITATION, target_tm, fallback);
-    if (this->weather_) publish_text_sensor_state_(this->weather_, ElementValueKey::WEATHER, target_tm, fallback);
-    if (this->weather_code_) publish_text_sensor_state_(this->weather_code_, ElementValueKey::WEATHER_CODE, target_tm, fallback);
-    if (this->weather_description_) publish_text_sensor_state_(this->weather_description_, ElementValueKey::WEATHER_DESCRIPTION, target_tm, fallback);
-    if (this->weather_icon_) publish_text_sensor_state_(this->weather_icon_, ElementValueKey::WEATHER_ICON, target_tm, fallback);
-    if (this->wind_direction_) publish_text_sensor_state_(this->wind_direction_, ElementValueKey::WIND_DIRECTION, target_tm, fallback);
-    if (this->beaufort_scale_) publish_text_sensor_state_(this->beaufort_scale_, ElementValueKey::BEAUFORT_SCALE, target_tm, fallback);
+      publish_sensor_state_(this->probability_of_precipitation_, ElementValueKey::PROBABILITY_OF_PRECIPITATION,
+                            target_tm, fallback);
+    if (this->weather_)
+      publish_text_sensor_state_(this->weather_, ElementValueKey::WEATHER, target_tm, fallback);
+    if (this->weather_code_)
+      publish_text_sensor_state_(this->weather_code_, ElementValueKey::WEATHER_CODE, target_tm, fallback);
+    if (this->weather_description_)
+      publish_text_sensor_state_(this->weather_description_, ElementValueKey::WEATHER_DESCRIPTION, target_tm, fallback);
+    if (this->weather_icon_)
+      publish_text_sensor_state_(this->weather_icon_, ElementValueKey::WEATHER_ICON, target_tm, fallback);
+    if (this->wind_direction_)
+      publish_text_sensor_state_(this->wind_direction_, ElementValueKey::WIND_DIRECTION, target_tm, fallback);
+    if (this->beaufort_scale_)
+      publish_text_sensor_state_(this->beaufort_scale_, ElementValueKey::BEAUFORT_SCALE, target_tm, fallback);
   } else if (mode_ == Mode::SEVEN_DAYS) {
     // 7-day mode sensors
-    if (this->temperature_) publish_sensor_state_(this->temperature_, ElementValueKey::TEMPERATURE, target_tm, fallback);
-    if (this->dew_point_) publish_sensor_state_(this->dew_point_, ElementValueKey::DEW_POINT, target_tm, fallback);
-    if (this->relative_humidity_) publish_sensor_state_(this->relative_humidity_, ElementValueKey::RELATIVE_HUMIDITY, target_tm, fallback);
-    if (this->wind_speed_) publish_sensor_state_(this->wind_speed_, ElementValueKey::WIND_SPEED, target_tm, fallback);
-    if (this->beaufort_scale_) publish_text_sensor_state_(this->beaufort_scale_, ElementValueKey::BEAUFORT_SCALE, target_tm, fallback);
+    if (this->temperature_)
+      publish_sensor_state_(this->temperature_, ElementValueKey::TEMPERATURE, target_tm, fallback);
+    if (this->dew_point_)
+      publish_sensor_state_(this->dew_point_, ElementValueKey::DEW_POINT, target_tm, fallback);
+    if (this->relative_humidity_)
+      publish_sensor_state_(this->relative_humidity_, ElementValueKey::RELATIVE_HUMIDITY, target_tm, fallback);
+    if (this->wind_speed_)
+      publish_sensor_state_(this->wind_speed_, ElementValueKey::WIND_SPEED, target_tm, fallback);
+    if (this->beaufort_scale_)
+      publish_text_sensor_state_(this->beaufort_scale_, ElementValueKey::BEAUFORT_SCALE, target_tm, fallback);
     if (this->probability_of_precipitation_)
-      publish_sensor_state_(this->probability_of_precipitation_, ElementValueKey::PROBABILITY_OF_PRECIPITATION, target_tm, fallback);
-    if (this->max_temperature_) publish_sensor_state_(this->max_temperature_, ElementValueKey::MAX_TEMPERATURE, target_tm, fallback);
-    if (this->min_temperature_) publish_sensor_state_(this->min_temperature_, ElementValueKey::MIN_TEMPERATURE, target_tm, fallback);
-    if (this->max_apparent_temperature_) publish_sensor_state_(this->max_apparent_temperature_, ElementValueKey::MAX_APPARENT_TEMPERATURE, target_tm, fallback);
-    if (this->min_apparent_temperature_) publish_sensor_state_(this->min_apparent_temperature_, ElementValueKey::MIN_APPARENT_TEMPERATURE, target_tm, fallback);
-    if (this->max_comfort_index_) publish_text_sensor_state_(this->max_comfort_index_, ElementValueKey::MAX_COMFORT_INDEX, target_tm, fallback);
-    if (this->min_comfort_index_) publish_text_sensor_state_(this->min_comfort_index_, ElementValueKey::MIN_COMFORT_INDEX, target_tm, fallback);
+      publish_sensor_state_(this->probability_of_precipitation_, ElementValueKey::PROBABILITY_OF_PRECIPITATION,
+                            target_tm, fallback);
+    if (this->max_temperature_)
+      publish_sensor_state_(this->max_temperature_, ElementValueKey::MAX_TEMPERATURE, target_tm, fallback);
+    if (this->min_temperature_)
+      publish_sensor_state_(this->min_temperature_, ElementValueKey::MIN_TEMPERATURE, target_tm, fallback);
+    if (this->max_apparent_temperature_)
+      publish_sensor_state_(this->max_apparent_temperature_, ElementValueKey::MAX_APPARENT_TEMPERATURE, target_tm,
+                            fallback);
+    if (this->min_apparent_temperature_)
+      publish_sensor_state_(this->min_apparent_temperature_, ElementValueKey::MIN_APPARENT_TEMPERATURE, target_tm,
+                            fallback);
+    if (this->max_comfort_index_)
+      publish_text_sensor_state_(this->max_comfort_index_, ElementValueKey::MAX_COMFORT_INDEX, target_tm, fallback);
+    if (this->min_comfort_index_)
+      publish_text_sensor_state_(this->min_comfort_index_, ElementValueKey::MIN_COMFORT_INDEX, target_tm, fallback);
     if (this->max_comfort_index_description_)
-      publish_text_sensor_state_(this->max_comfort_index_description_, ElementValueKey::MAX_COMFORT_INDEX_DESCRIPTION, target_tm, fallback);
+      publish_text_sensor_state_(this->max_comfort_index_description_, ElementValueKey::MAX_COMFORT_INDEX_DESCRIPTION,
+                                 target_tm, fallback);
     if (this->min_comfort_index_description_)
-      publish_text_sensor_state_(this->min_comfort_index_description_, ElementValueKey::MIN_COMFORT_INDEX_DESCRIPTION, target_tm, fallback);
-    if (this->uv_index_) publish_sensor_state_(this->uv_index_, ElementValueKey::UV_INDEX, target_tm, fallback);
-    if (this->uv_exposure_level_) publish_text_sensor_state_(this->uv_exposure_level_, ElementValueKey::UV_EXPOSURE_LEVEL, target_tm, fallback);
-    if (this->weather_) publish_text_sensor_state_(this->weather_, ElementValueKey::WEATHER, target_tm, fallback);
-    if (this->weather_code_) publish_text_sensor_state_(this->weather_code_, ElementValueKey::WEATHER_CODE, target_tm, fallback);
-    if (this->weather_icon_) publish_text_sensor_state_(this->weather_icon_, ElementValueKey::WEATHER_ICON, target_tm, fallback);
-    if (this->weather_description_) publish_text_sensor_state_(this->weather_description_, ElementValueKey::WEATHER_DESCRIPTION, target_tm, fallback);
-    if (this->wind_direction_) publish_text_sensor_state_(this->wind_direction_, ElementValueKey::WIND_DIRECTION, target_tm, fallback);
+      publish_text_sensor_state_(this->min_comfort_index_description_, ElementValueKey::MIN_COMFORT_INDEX_DESCRIPTION,
+                                 target_tm, fallback);
+    if (this->uv_index_)
+      publish_sensor_state_(this->uv_index_, ElementValueKey::UV_INDEX, target_tm, fallback);
+    if (this->uv_exposure_level_)
+      publish_text_sensor_state_(this->uv_exposure_level_, ElementValueKey::UV_EXPOSURE_LEVEL, target_tm, fallback);
+    if (this->weather_)
+      publish_text_sensor_state_(this->weather_, ElementValueKey::WEATHER, target_tm, fallback);
+    if (this->weather_code_)
+      publish_text_sensor_state_(this->weather_code_, ElementValueKey::WEATHER_CODE, target_tm, fallback);
+    if (this->weather_icon_)
+      publish_text_sensor_state_(this->weather_icon_, ElementValueKey::WEATHER_ICON, target_tm, fallback);
+    if (this->weather_description_)
+      publish_text_sensor_state_(this->weather_description_, ElementValueKey::WEATHER_DESCRIPTION, target_tm, fallback);
+    if (this->wind_direction_)
+      publish_text_sensor_state_(this->wind_direction_, ElementValueKey::WIND_DIRECTION, target_tm, fallback);
   } else {
     ESP_LOGE(TAG, "Invalid mode in publish_states_: %s", mode_to_string(mode_).c_str());
   }

@@ -191,8 +191,6 @@ text_sensor:
       name: "Weather Code"
     weather_description:
       name: "Weather Description"
-    weather_icon:
-      name: "Weather Icon"
     wind_direction:
       name: "Wind Direction"
     beaufort_scale:
@@ -253,8 +251,6 @@ text_sensor:
 #       name: "Weather"
 #     weather_code:
 #       name: "Weather Code"
-#     weather_icon:
-#       name: "Weather Icon"
 #     uv_exposure_level:
 #       name: "UV Exposure Level"
 #     weather_description:

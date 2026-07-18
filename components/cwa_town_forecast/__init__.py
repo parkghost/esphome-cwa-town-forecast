@@ -185,7 +185,7 @@ CONFIG_SCHEMA = cv.All(
         .extend(cv.polling_component_schema("never")),
     ),
     cv.only_on_esp32,
-    cv.require_esphome_version(2026, 2, 0)
+    cv.require_esphome_version(2026, 2, 0),
 )
 
 

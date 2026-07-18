@@ -170,7 +170,7 @@ struct Time {
 };
 
 // Utility function to get min and max value for a given ElementValueKey in a vector of Time
-template <typename Alloc>
+template<typename Alloc>
 inline std::pair<double, double> get_min_max_element_value(const std::vector<Time, Alloc> &times, ElementValueKey key) {
   using std::begin;
   using std::end;
@@ -188,8 +188,10 @@ inline std::pair<double, double> get_min_max_element_value(const std::vector<Tim
         min_val = max_val = num;
         found = true;
       } else {
-        if (num < min_val) min_val = num;
-        if (num > max_val) max_val = num;
+        if (num < min_val)
+          min_val = num;
+        if (num > max_val)
+          max_val = num;
       }
     }
   }
@@ -221,7 +223,8 @@ struct WeatherElement {
   }
 
   Time *find_closest_time(const std::tm &target) const {
-    if (this->times.empty()) return nullptr;
+    if (this->times.empty())
+      return nullptr;
 
     size_t closest_idx = 0;
     std::time_t tgt_epoch = TimeField::to_wall_epoch(target);
@@ -238,7 +241,8 @@ struct WeatherElement {
   }
 
   Time *match_time(const std::tm &target, ElementValueKey key, bool fallback_to_first_element) const {
-    if (this->times.empty()) return nullptr;
+    if (this->times.empty())
+      return nullptr;
 
     Time *best = nullptr;
     std::time_t tgt_epoch = TimeField::to_wall_epoch(target);
@@ -271,6 +275,21 @@ struct WeatherElement {
   }
 };
 
+// Result of Record::find_weather_icon(): everything a display lambda needs to
+// render one forecast slot's weather icon in a single lookup.
+struct WeatherIconInfo {
+  char code[3];         // CWA WeatherCode ("01".."42"); "" when the slot has none
+  const char *name;     // icon name, e.g. "wi-day-sunny"; "" when not mapped
+  const char *unicode;  // UTF-8 font glyph ready for printf; "" when not mapped
+  uint8_t flags;        // WEATHER_FLAG_* bits of the code
+  bool valid;           // slot had a WeatherCode with an icon mapping
+
+  bool is_rainy() const { return (this->flags & WEATHER_FLAG_RAIN) != 0; }
+  bool is_lightning() const { return (this->flags & WEATHER_FLAG_THUNDER) != 0; }
+  bool is_foggy() const { return (this->flags & WEATHER_FLAG_FOG) != 0; }
+  bool is_snowy() const { return (this->flags & WEATHER_FLAG_SNOW) != 0; }
+};
+
 struct Record {
   Mode mode;
   std::string locations_name;
@@ -280,6 +299,9 @@ struct Record {
   std::tm updated_time;
   double latitude;
   double longitude;
+  // Hours east of UTC, captured from the RTC when the record was parsed; used
+  // for sunrise/sunset calculation. CWA data is Taiwan-only, hence the default.
+  double timezone_offset{8.0};
   std::vector<WeatherElement, PsramAllocator<WeatherElement>> weather_elements;
   // Deduplicated value storage referenced by every Time's element_values.
   // Shared with the Times so the pool outlives any Time copied out of this
@@ -301,14 +323,16 @@ struct Record {
 
   const WeatherElement *find_weather_element(const std::string &name) const {
     for (const auto &we : weather_elements) {
-      if (we.element_name == name) return &we;
+      if (we.element_name == name)
+        return &we;
     }
     return nullptr;
   }
 
   const WeatherElement *get_weather_element_for_key(ElementValueKey key) const {
-    const char* name = find_mode_element_name(this->mode, key);
-    if (!name) return nullptr;
+    const char *name = find_mode_element_name(this->mode, key);
+    if (!name)
+      return nullptr;
     return this->find_weather_element(name);
   }
 
@@ -316,9 +340,11 @@ struct Record {
     return find_value(key, fallback_to_first_element, tm, std::string("-"));
   }
 
-  const std::string find_value(ElementValueKey key, bool fallback_to_first_element, std::tm tm, std::string default_value) const {
+  const std::string find_value(ElementValueKey key, bool fallback_to_first_element, std::tm tm,
+                               std::string default_value) const {
     const WeatherElement *we = this->get_weather_element_for_key(key);
-    if (!we) return default_value;
+    if (!we)
+      return default_value;
     if (Time *ts = we->match_time(tm, key, fallback_to_first_element)) {
       auto val = ts->find_element_value(key);
       return val.empty() ? default_value : val;
@@ -326,9 +352,20 @@ struct Record {
     return default_value;
   }
 
+  // True when t falls between sunrise and sunset at this record's location
+  // (hour granularity, matching the WEATHER_ICON day/night selection).
+  bool is_daytime(const std::tm &t) const;
+
+  // One-stop weather icon lookup for the slot matching tm: resolves the
+  // WeatherCode, picks the day or night glyph via is_daytime(tm), and returns
+  // name/unicode/condition flags together.
+  WeatherIconInfo find_weather_icon(bool fallback_to_first_element, const std::tm &tm,
+                                    IconSet set = IconSet::WEATHER_ICONS) const;
+
   const std::pair<double, double> find_min_max_values(ElementValueKey key, std::tm &start, std::tm &end) const {
     const WeatherElement *we = this->get_weather_element_for_key(key);
-    if (!we) return std::make_pair(0.0, 0.0);
+    if (!we)
+      return std::make_pair(0.0, 0.0);
     return get_min_max_element_value(we->filter_times(start, end), key);
   }
 
@@ -349,7 +386,8 @@ struct Record {
         if (t.data_time.is_valid()) {
           datetime_str = tm_to_esptime(t.data_time.to_tm()).strftime("%Y-%m-%dT%H:%M:%S");
         } else if (t.start_time_data.is_valid() && t.end_time_data.is_valid()) {
-          datetime_str = tm_to_esptime(t.start_time_data.to_tm()).strftime("%Y-%m-%dT%H:%M:%S") + " - " + tm_to_esptime(t.end_time_data.to_tm()).strftime("%Y-%m-%dT%H:%M:%S");
+          datetime_str = tm_to_esptime(t.start_time_data.to_tm()).strftime("%Y-%m-%dT%H:%M:%S") + " - " +
+                         tm_to_esptime(t.end_time_data.to_tm()).strftime("%Y-%m-%dT%H:%M:%S");
         }
 
         std::string joined_values;
@@ -382,20 +420,11 @@ class CWATownForecast : public PollingComponent {
 
   void set_mode(Mode mode) { mode_ = mode; }
 
-  template <typename V>
-  void set_api_key(V key) {
-    api_key_ = key;
-  }
+  template<typename V> void set_api_key(V key) { api_key_ = key; }
 
-  template <typename V>
-  void set_city_name(V city_name) {
-    city_name_ = city_name;
-  }
+  template<typename V> void set_city_name(V city_name) { city_name_ = city_name; }
 
-  template <typename V>
-  void set_town_name(V town_name) {
-    town_name_ = town_name;
-  }
+  template<typename V> void set_town_name(V town_name) { town_name_ = town_name; }
 
   void add_weather_element(const std::string &weather_element) { this->weather_elements_.push_back(weather_element); }
 
@@ -403,40 +432,19 @@ class CWATownForecast : public PollingComponent {
     weather_elements_.assign(weather_elements.begin(), weather_elements.end());
   }
 
-  template <typename V>
-  void set_time_to(V time_to) {
-    time_to_ = time_to;
-  }
+  template<typename V> void set_time_to(V time_to) { time_to_ = time_to; }
 
-  template <typename V>
-  void set_sensor_expiry(V expiry) {
-    sensor_expiry_ = expiry;
-  }
+  template<typename V> void set_sensor_expiry(V expiry) { sensor_expiry_ = expiry; }
 
-  template <typename V>
-  void set_fallback_to_first_element(V fallback) {
-    fallback_to_first_element_ = fallback;
-  }
+  template<typename V> void set_fallback_to_first_element(V fallback) { fallback_to_first_element_ = fallback; }
 
-  template <typename V>
-  void set_retain_fetched_data(V retain) {
-    retain_fetched_data_ = retain;
-  }
+  template<typename V> void set_retain_fetched_data(V retain) { retain_fetched_data_ = retain; }
 
-  template <typename V>
-  void set_early_data_clear(V early_data_clear) {
-    early_data_clear_ = early_data_clear;
-  }
+  template<typename V> void set_early_data_clear(V early_data_clear) { early_data_clear_ = early_data_clear; }
 
-  template <typename V>
-  void set_retry_count(V retry_count) {
-    retry_count_ = retry_count;
-  }
+  template<typename V> void set_retry_count(V retry_count) { retry_count_ = retry_count; }
 
-  template <typename V>
-  void set_retry_delay(V retry_delay) {
-    retry_delay_ = retry_delay;
-  }
+  template<typename V> void set_retry_delay(V retry_delay) { retry_delay_ = retry_delay; }
 
   void clear_data() { record_.release_data(); }
 
@@ -451,7 +459,9 @@ class CWATownForecast : public PollingComponent {
   void set_dew_point_sensor(sensor::Sensor *sensor) { dew_point_ = sensor; }
   void set_apparent_temperature_sensor(sensor::Sensor *sensor) { apparent_temperature_ = sensor; }
   void set_comfort_index_text_sensor(text_sensor::TextSensor *sensor) { comfort_index_ = sensor; }
-  void set_comfort_index_description_text_sensor(text_sensor::TextSensor *sensor) { comfort_index_description_ = sensor; }
+  void set_comfort_index_description_text_sensor(text_sensor::TextSensor *sensor) {
+    comfort_index_description_ = sensor;
+  }
   void set_relative_humidity_sensor(sensor::Sensor *sensor) { relative_humidity_ = sensor; }
   void set_wind_speed_sensor(sensor::Sensor *sensor) { wind_speed_ = sensor; }
   void set_probability_of_precipitation_sensor(sensor::Sensor *sensor) { probability_of_precipitation_ = sensor; }
@@ -467,8 +477,12 @@ class CWATownForecast : public PollingComponent {
   void set_min_apparent_temperature_sensor(sensor::Sensor *sensor) { min_apparent_temperature_ = sensor; }
   void set_max_comfort_index_text_sensor(text_sensor::TextSensor *sensor) { max_comfort_index_ = sensor; }
   void set_min_comfort_index_text_sensor(text_sensor::TextSensor *sensor) { min_comfort_index_ = sensor; }
-  void set_max_comfort_index_description_text_sensor(text_sensor::TextSensor *sensor) { max_comfort_index_description_ = sensor; }
-  void set_min_comfort_index_description_text_sensor(text_sensor::TextSensor *sensor) { min_comfort_index_description_ = sensor; }
+  void set_max_comfort_index_description_text_sensor(text_sensor::TextSensor *sensor) {
+    max_comfort_index_description_ = sensor;
+  }
+  void set_min_comfort_index_description_text_sensor(text_sensor::TextSensor *sensor) {
+    min_comfort_index_description_ = sensor;
+  }
   void set_uv_index_sensor(sensor::Sensor *sensor) { uv_index_ = sensor; }
   void set_uv_exposure_level_text_sensor(text_sensor::TextSensor *sensor) { uv_exposure_level_ = sensor; }
   Trigger<Record &> *get_on_data_change_trigger() { return &this->on_data_change_trigger_; }
@@ -476,7 +490,7 @@ class CWATownForecast : public PollingComponent {
   void set_http_request(http_request::HttpRequestComponent *http_request) { http_request_ = http_request; }
 
  protected:
-  bool parse_to_record(HttpStreamAdapter &stream, Record& record, uint64_t &hash_code);
+  bool parse_to_record(HttpStreamAdapter &stream, Record &record, uint64_t &hash_code);
 
   TemplatableValue<std::string> api_key_;
   TemplatableValue<std::string> city_name_;
@@ -540,10 +554,11 @@ class CWATownForecast : public PollingComponent {
   bool check_changes(uint64_t new_hash_code);
   void publish_states_();
   void publish_sensor_state_(sensor::Sensor *sensor, ElementValueKey key, std::tm &target_tm, bool fallback_to_first);
-  void publish_text_sensor_state_(text_sensor::TextSensor *sensor, ElementValueKey key, std::tm &target_tm, bool fallback_to_first);
-  template <typename SensorT, typename PublishValFunc, typename PublishNoMatchFunc>
-  void publish_state_common_(SensorT *sensor, ElementValueKey key, std::tm &target_tm, bool fallback_to_first, PublishValFunc publish_val,
-                             PublishNoMatchFunc publish_no_match);
+  void publish_text_sensor_state_(text_sensor::TextSensor *sensor, ElementValueKey key, std::tm &target_tm,
+                                  bool fallback_to_first);
+  template<typename SensorT, typename PublishValFunc, typename PublishNoMatchFunc>
+  void publish_state_common_(SensorT *sensor, ElementValueKey key, std::tm &target_tm, bool fallback_to_first,
+                             PublishValFunc publish_val, PublishNoMatchFunc publish_no_match);
 };
 
 }  // namespace cwa_town_forecast

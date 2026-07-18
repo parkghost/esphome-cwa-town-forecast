@@ -1,6 +1,9 @@
+import logging
+
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import text_sensor
+from esphome.const import CONF_DISABLED_BY_DEFAULT
 
 from . import (
     CONF_CWA_TOWN_FORECAST_ID,
@@ -9,6 +12,8 @@ from . import (
     MODE_THREE_DAYS,
     MODE_SEVEN_DAYS,
 )
+
+_LOGGER = logging.getLogger(__name__)
 
 CONF_CITY = "city"
 CONF_TOWN = "town"
@@ -29,6 +34,25 @@ CONF_MIN_COMFORT_INDEX = "min_comfort_index"
 CONF_MAX_COMFORT_INDEX_DESCRIPTION = "max_comfort_index_description"
 CONF_MIN_COMFORT_INDEX_DESCRIPTION = "min_comfort_index_description"
 CONF_UV_EXPOSURE_LEVEL = "uv_exposure_level"
+
+
+def _deprecated_weather_icon(config):
+    _LOGGER.warning(
+        "The 'weather_icon' text sensor is deprecated and now disabled by default. "
+        "Use Record::find_weather_icon() in a display lambda instead; "
+        "it will be removed in a future release."
+    )
+    return config
+
+
+# Deprecated: publishes MDI icon names derived from WeatherCode. Kept for
+# backward compatibility, disabled by default in Home Assistant.
+WEATHER_ICON_SCHEMA = cv.All(
+    text_sensor.text_sensor_schema().extend(
+        {cv.Optional(CONF_DISABLED_BY_DEFAULT, default=True): cv.boolean}
+    ),
+    _deprecated_weather_icon,
+)
 
 
 TEXT_SENSORS_3DAYS = [
@@ -104,7 +128,7 @@ CONFIG_SCHEMA = cv.All(
                     cv.Optional(
                         CONF_WEATHER_DESCRIPTION
                     ): text_sensor.text_sensor_schema(),
-                    cv.Optional(CONF_WEATHER_ICON): text_sensor.text_sensor_schema(),
+                    cv.Optional(CONF_WEATHER_ICON): WEATHER_ICON_SCHEMA,
                     cv.Optional(CONF_COMFORT_INDEX): text_sensor.text_sensor_schema(),
                     cv.Optional(CONF_WIND_DIRECTION): text_sensor.text_sensor_schema(),
                     cv.Optional(CONF_BEAUFORT_SCALE): text_sensor.text_sensor_schema(),
@@ -121,7 +145,7 @@ CONFIG_SCHEMA = cv.All(
                     cv.Optional(
                         CONF_WEATHER_DESCRIPTION
                     ): text_sensor.text_sensor_schema(),
-                    cv.Optional(CONF_WEATHER_ICON): text_sensor.text_sensor_schema(),
+                    cv.Optional(CONF_WEATHER_ICON): WEATHER_ICON_SCHEMA,
                     cv.Optional(CONF_WIND_DIRECTION): text_sensor.text_sensor_schema(),
                     cv.Optional(CONF_BEAUFORT_SCALE): text_sensor.text_sensor_schema(),
                     cv.Optional(
